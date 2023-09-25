@@ -1,70 +1,125 @@
 from pathlib import Path
 from cobra.io import load_model, read_sbml_model, write_sbml_model
+import os
+import re
 
 
 class PathOrganizer:
     def __init__(self):
         self.data_dir = Path()
-        self.xml_path = ""
-        self.sbml_path = ""
-        self.files_path_list = list()
+        self.model_dir = Path()
+        self.model_version_dir = Path()
+        self.target_mo_version_dir = Path()
         self.paths = {}
-
-        # Initiate Functions
-        # self.get_main_folder_path()
-        # self.get_and_organize_files_path()
+        self.mo_name = None
+        self.major_version = None
+        self.minor_version = None
+        self.sv_pattern = rf"\d+\.\d+\.(\d+)\.sbml$"
 
     # Functions
     def get_draft_model_path(self, draft_name):
         self.data_dir = Path.cwd() / "data" / "raw" / draft_name
         self.data_dir = self.data_dir.resolve()
-        return str(self.data_dir)
-
-    def get_models_main_folder_path(self, target_mo_name):
-        self.data_dir = Path.cwd() / "models" / target_mo_name
-        self.data_dir = self.data_dir.resolve()
         return self.data_dir
 
-    def get_and_organize_files_path(self):
-        xml_suf = ".xml"
-        sbml_suf = ".sbml"
+    def get_models_main_folder_path(self):
+        if self.mo_name != None:
+            self.model_dir = Path.cwd() / "models" / self.mo_name
+        else:
+            self.mo_name = str(input("Name of Organism?"))
+            self.model_dir = Path.cwd() / "models" / self.mo_name
 
-        xml_files = []
-        sbml_files = []
+        self.model_dir = self.model_dir.resolve()
+        if self.model_dir.is_dir() is False:
+            print("Organism not found.")
+            self.mo_name = None
 
-        for file in self.data_dir.glob("*.*"):
-            file = file.resolve()
-            self.files_path_list.append(file)
+        else:
+            return self.model_dir
 
-        for path in self.files_path_list:
-            if str(path).endswith(xml_suf):
-                xml_files.append(path)
+    def get_model_version_path(self):
+        self.get_models_main_folder_path()
 
-            if str(path).endswith(sbml_suf):
-                sbml_files.append(path)
+        self.target_mo_version = None
 
-        self.paths["XML"] = xml_files
-        self.paths["SBML"] = sbml_files
+        print("Available Model Versions:")
+        for number, model_id in enumerate(os.listdir(self.model_dir)):
+            print(f"{number}) {model_id}")
 
-    def define_xml_path(self):
-        options = self.paths["XML"]
-        for i, item in enumerate(options):
-            print(i, "||", item)
-        x = int(input("Which model do you want? Start with 0: "))
-        self.xml_path = str(self.paths["XML"][x].resolve())
-        return self.xml_path
+        self.target_mo_version = str(input("What model should be loaded?"))
 
-    def define_sbml_path(self):
-        options = self.paths["SBML"]
-        for i, item in enumerate(options):
-            print(i, "||", item)
-        x = int(input("Which model do you want? Start with 0: "))
-        self.sbml_path = str(self.paths["SBML"][x].resolve())
-        return self.sbml_path
+        match = re.match(self.sv_pattern, self.target_mo_version)
+
+        if match:
+            self.target_mo_version_dir = os.path.join(
+                self.model_dir, self.target_mo_version
+            )
+            return self.target_mo_version_dir
+        else:
+            "Model not found."
 
     def load_model(self, path):
-        self.model = read_sbml_model(path)
+        self.model = read_sbml_model(str(path))
         return self.model
 
+    def get_existing_models(self):
+        self.existing_models = []
+
+        self.version_pattern = (
+            rf"{self.major_version}\.{self.minor_version}\.(\d+)\.sbml$"
+        )
+
+        for model_id in os.listdir(self.model_dir):
+            match = re.match(self.version_pattern, model_id)
+            if match:
+                self.existing_models.append(model_id)
+
+        return self.existing_models
+
+    def semantic_versioning(self):
+        if self.model_dir.is_dir() is False:
+            self.model_dir = self.get_models_main_folder_path()
+
+        self.get_existing_models()
+
+        if self.existing_models:
+            self.patch_versions = [
+                int(re.match(self.sv_pattern, model_id).group(1))
+                for model_id in self.existing_models
+            ]
+            self.next_patch = max(self.patch_versions) + 1
+        else:
+            self.next_patch = 1
+
+        self.model_filename = (
+            f"{self.major_version}.{self.minor_version}.{self.next_patch}.sbml"
+        )
+
     def save_model(self):
-        self.model = write_sbml_model()
+        self.get_models_main_folder_path()
+
+        if self.major_version is None:
+            self.major_version = int(input("Major Version Number?"))
+
+        if self.minor_version is None:
+            self.minor_version = int(input("Minor Version Number?"))
+
+        self.semantic_versioning()
+
+        print("Existing Model Versions:")
+        for number, model_id in enumerate(self.existing_models):
+            print(f"{number}) {model_id}")
+        print("-" * 50)
+
+        print(f"Model version will be saved as {self.model_filename}")
+
+        sure = input("Are you sure? (y/n)")
+
+        if sure == "y":
+            self.model_version_dir = os.path.join(self.model_dir, self.model_filename)
+            write_sbml_model(cobra_model=self.model, filename=self.model_version_dir)
+            print("-" * 50)
+            print("Version saved.")
+        else:
+            print("-" * 50)
+            print("Nothing was saved.")
