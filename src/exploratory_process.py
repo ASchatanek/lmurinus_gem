@@ -1,4 +1,5 @@
 from src.data import PathOrganizer
+import re
 
 mo_name = "Lactobacillus_murinus"
 
@@ -17,21 +18,6 @@ print(f"Metabolites: {len(model.metabolites)}")
 print(f"Genes: {len(model.genes)}")
 print("-" * 20)
 
-model.remove_reactions(reactions=["EX_cpd17042_e0", "EX_cpd17043_e0", "EX_cpd17041_e0"])
-
-target = model.metabolites.get_by_id("cpd17041_e0")
-target.id = "cpd17041_c0"
-
-target = model.metabolites.get_by_id("cpd17042_e0")
-target.id = "cpd17042_c0"
-
-target = model.metabolites.get_by_id("cpd17043_e0")
-target.id = "cpd17043_c0"
-
-model.add_boundary(metabolite=model.metabolites.get_by_id("cpd17041_c0"), type="sink")
-model.add_boundary(metabolite=model.metabolites.get_by_id("cpd17042_c0"), type="sink")
-model.add_boundary(metabolite=model.metabolites.get_by_id("cpd17043_c0"), type="sink")
-
 for bound in model.sinks:
     print(bound.name)
     print(bound.id)
@@ -41,3 +27,26 @@ for bound in model.sinks:
     print("")
 
 # lmur_pathorg.save_model()
+
+print(len(model.boundary))
+print(len(model.exchanges))
+print(len(model.sinks))
+print(type(model.demands))
+
+for exchange in model.exchanges:
+    ex_reac = exchange.reaction
+    met_id = re.match(r"([a-z]+)(\d+)\w([a-z]\d)", ex_reac).group()
+    met = model.metabolites.get_by_id(met_id)
+
+    match = re.match(r"(\w+)-e0-e0", met.name)
+    if match:
+        print(f"{met} --> {met.name}")
+
+        met.name = f"{match.group(1)}-e0"
+
+        print(f"{met} --> {met.name}")
+
+
+model.metabolites.get_by_id("cpd00158_e0")
+
+lmur_pathorg.save_model()
