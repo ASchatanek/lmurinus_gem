@@ -1,5 +1,5 @@
 from pathlib import Path
-from cobra.io import load_model, read_sbml_model, write_sbml_model
+from cobra.io import read_sbml_model, write_sbml_model
 import os
 import re
 
@@ -22,12 +22,16 @@ class PathOrganizer:
         self.data_dir = self.data_dir.resolve()
         return self.data_dir
 
-    def get_models_main_folder_path(self):
-        if self.mo_name != None:
+    def get_models_main_folder_path(self, mo_name=None):
+        if self.mo_name != None and mo_name == None:
             self.model_dir = Path.cwd() / "models" / self.mo_name
         else:
-            self.mo_name = str(input("Name of Organism?"))
-            self.model_dir = Path.cwd() / "models" / self.mo_name
+            if mo_name != None:
+                self.mo_name = mo_name
+                self.model_dir = Path.cwd() / "models" / self.mo_name
+            else:
+                self.mo_name = str(input("Name of Organism?"))
+                self.model_dir = Path.cwd() / "models" / self.mo_name
 
         self.model_dir = self.model_dir.resolve()
         if self.model_dir.is_dir() is False:
@@ -37,8 +41,8 @@ class PathOrganizer:
         else:
             return self.model_dir
 
-    def get_model_version_path(self):
-        self.get_models_main_folder_path()
+    def get_model_version_path(self, mo_name=None):
+        self.get_models_main_folder_path(mo_name=mo_name)
 
         self.target_mo_version = None
 
