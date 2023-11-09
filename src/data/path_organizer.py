@@ -2,6 +2,7 @@ from pathlib import Path
 from cobra.io import read_sbml_model, write_sbml_model
 import os
 import re
+import cobra
 
 
 class PathOrganizer:
