@@ -2,7 +2,7 @@ import pandas as pd
 
 
 class ExploratoryFunctions:
-    def search_reactions(self, met_id):
+    def search_reactions(self, model, met_id):
         met_tgt = model.metabolites.get_by_id(met_id)
 
         for rxn in met_tgt.reactions:
@@ -15,13 +15,23 @@ class ExploratoryFunctions:
         self,
         model,
         medium: list or dict,
-        essential: list,
-        closed: list,
+        essential=None,
+        closed=None,
         lowerbound=0,
         upperbound=1000,
     ):
         for ex in model.exchanges:
             ex.bounds = (lowerbound, upperbound)
+
+        if essential != None and type(essential) == list:
+            for es in essential:
+                es_tgt = model.reactions.get_by_id(es)
+                es_tgt.bounds = (-1000, 1000)
+
+        if closed != None and type(closed) == list:
+            for cl in closed:
+                x_p = model.reactions.get_by_id(cl)
+                x_p.bounds = (0, 1000)
 
         if type(medium) == list:
             for i in medium:
@@ -32,14 +42,6 @@ class ExploratoryFunctions:
             for rxn, bds in medium.items():
                 tgt = model.reactions.get_by_id(rxn)
                 tgt.bounds = bds
-
-        for es in essential:
-            es_tgt = model.reactions.get_by_id(es)
-            es_tgt.bounds = (-1000, 1000)
-
-        for cl in closed:
-            x_p = model.reactions.get_by_id(cl)
-            x_p.bounds = (0, 1000)
 
     def gather_media_fluxes(self, model, fva_fraction=None):
         model.optimize()
@@ -57,6 +59,9 @@ class ExploratoryFunctions:
 
             up_met_names[upt] = upt_tgt.name
 
+        uptake_df["met. names"] = uptake_df["metabolite"].map(up_met_names)
+        uptake_df = uptake_df
+
         secretion_df = self.result.secretion_flux.copy()
         sec_met_names = {}
 
@@ -65,11 +70,10 @@ class ExploratoryFunctions:
 
             sec_met_names[sec] = sec_tgt.name
 
-        uptake_df["met. names"] = uptake_df["metabolite"].map(up_met_names)
-        uptake_df = uptake_df
-
         secretion_df["met. names"] = secretion_df["metabolite"].map(sec_met_names)
-        secretion_df = secretion_df.loc[secretion_df["flux"] != 0.00]
+        secretion_df = secretion_df.loc[
+            secretion_df["flux"] != 0.00
+        ]  # Only interested in those which were actually secreted
 
         return uptake_df, secretion_df
 
@@ -116,3 +120,78 @@ class ExploratoryFunctions:
         )
 
         return self.carbon_prediction_results
+
+    def reduced_uptake_fba_analysis(self, model, percentage=1):
+        # Stores the different pandas series containing the fluxes of the uptaken and secreted metabolites generated in each FBA calculation
+        flux_series_dict = dict()
+        met_names_dict = dict()
+        column_order = ["reaction", "metabolite", "met. names", "flux"]
+
+        # The medium of the model is updated based on which fluxes appear as open (in this case the lower bounds)
+        medium = model.medium
+
+        # List containing the list of the exchange reaction IDs of the "available" metabolites
+        medium_exrxn_list = list(medium.keys())
+
+        model.optimize()
+        original_solution = model.summary().to_frame()
+        original_solution = original_solution.loc[
+            original_solution["flux"] != 0, ["reaction", "metabolite", "flux"]
+        ]
+
+        for met in original_solution["metabolite"]:
+            target_met = model.metabolites.get_by_id(met)
+            met_names_dict[met] = target_met.name
+
+        original_solution["met. names"] = original_solution["metabolite"].map(
+            met_names_dict
+        )
+
+        original_solution = original_solution.reindex(columns=column_order).rename(
+            columns={"flux": "original"}
+        )
+
+        # This loop will perform several things:
+        # * (Any changes done to the model will not be saved by using the "with" statement)
+        ## - Use the available information in the medium to set the reduced uptake values
+        ## - Uptake the targets bounds with the reduced value
+        ## - Optimize and gather fluxes based on the medium_exrxn_list
+        for exrxn in medium_exrxn_list:
+            with model:
+                target_rxn = model.reactions.get_by_id(exrxn)
+                reduced_uptake_bound = (
+                    -medium[exrxn] * percentage
+                )  # LB = the uptake bound
+
+                updated_bounds = (reduced_uptake_bound, 1000)
+                target_rxn.bounds = updated_bounds
+
+                model.optimize()
+
+                solution = model.summary().to_frame()
+                solution = (
+                    solution.loc[solution["flux"] != 0, ["flux"]]
+                    .squeeze()
+                    .rename(exrxn)
+                )
+
+                flux_series_dict[exrxn] = solution
+
+        solution_df = pd.DataFrame(flux_series_dict)
+
+        frames = [original_solution, solution_df]
+
+        complete_solution = pd.concat(frames, axis=1)
+
+        for index in complete_solution.loc[
+            complete_solution["reaction"].isnull(), :
+        ].index:
+            complete_solution.loc[index, "reaction"] = index
+
+            filling_target = model.reactions.get_by_id(index)
+
+            for met in filling_target.metabolites:
+                complete_solution.loc[index, "metabolite"] = met.id
+                complete_solution.loc[index, "met. names"] = met.name
+
+        return complete_solution
