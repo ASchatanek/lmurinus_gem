@@ -1,5 +1,5 @@
 from src import PathOrganizer
-from src import ExploratoryFunctions as es
+from src import Model_Exploration_Tool as es
 
 import pandas as pd
 
@@ -153,19 +153,9 @@ model = lmur_pathorg.load_model(model_dir)
 #                         print("...")
 #                 print("")
 
-exploration = es()
-exploration.set_media(
-    model=model, medium=kwoji_updated, essential=essential, closed=closed_uptake
-)
+exploration = es(model=model)
+exploration.set_media(medium=kwoji_updated, essential=essential, closed=closed_uptake)
 
-u, s = exploration.gather_media_fluxes(model=model)
+exploration.print_reactions_from_metabolite("cpd00644_c0")
 
-# dif_u = exploration.find_differences(target_df=u, medium=kwoji)
-# dif_s = exploration.find_differences(target_df=s, medium=kwoji)
-
-# exploration.test_carbon_sources(model=model, carbon_list=c_sources)
-
-
-test = exploration.reduced_uptake_fba_analysis(model=model, percentage=0.5)
-
-test
+type(model)
