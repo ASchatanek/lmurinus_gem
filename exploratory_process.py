@@ -156,6 +156,10 @@ model = lmur_pathorg.load_model(model_dir)
 exploration = es(model=model)
 exploration.set_media(medium=kwoji_updated, essential=essential, closed=closed_uptake)
 
-exploration.print_reactions_from_metabolite("cpd00644_c0")
+lala = exploration.contrained_medium_fba_analysis(percentage=0.5)
 
-type(model)
+lala
+
+test = exploration.fetch_constrained_medium_fba_fluxes(percentage=0.5)
+
+test
