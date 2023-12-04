@@ -1,0 +1,316 @@
+1.1.1
+
+model.remove_reactions(reactions=["EX_cpd17042_e0", "EX_cpd17043_e0", "EX_cpd17041_e0"])
+
+target = model.metabolites.get_by_id("cpd17041_e0")
+target.id = "cpd17041_c0"
+
+target = model.metabolites.get_by_id("cpd17042_e0")
+target.id = "cpd17042_c0"
+
+target = model.metabolites.get_by_id("cpd17043_e0")
+target.id = "cpd17043_c0"
+
+model.add_boundary(metabolite=model.metabolites.get_by_id("cpd17041_c0"), type="sink")
+model.add_boundary(metabolite=model.metabolites.get_by_id("cpd17042_c0"), type="sink")
+model.add_boundary(metabolite=model.metabolites.get_by_id("cpd17043_c0"), type="sink")
+
+
+1.1.2
+
+for exchange in model.exchanges:
+    ex_reac = exchange.reaction
+    met_id = re.match(r"([a-z]+)(\d+)\w([a-z]\d)", ex_reac).group()
+    met = model.metabolites.get_by_id(met_id)
+    
+    match = re.match(r"(\w+)-e0-e0", met.name)
+    if match:
+        print(f"{met} --> {met.name}")
+        
+        met.name = f"{match.group(1)}-e0"
+        
+        print(f"{met} --> {met.name}")
+
+1.1.3
+
+model.remove_reactions(["DM_cpd01042_c0"])
+target_met = model.metabolites.get_by_id("cpd01042_c0")
+
+model.remove_metabolites(target_met)
+
+1.1.4
+
+target = model.metabolites.get_by_id("cpd17041_c0")
+target.compartment = "c0"
+target
+
+target = model.metabolites.get_by_id("cpd17042_c0")
+target.compartment = "c0"
+target
+
+target = model.metabolites.get_by_id("cpd17043_c0")
+target.compartment = "c0"
+target
+
+1.1.5
+
+-
+
+2.1.1
+
+Model was updated to the most recent draft model
+
+2.2.1
+
+# For the extracellular metabolites with only 1 transport reaction and no reversibility
+for row in ex_df.loc[ex_df["Lower Bound"] < 0].index:
+    target = model.reactions.get_by_id(row)
+    for met in target.metabolites:
+        m_target = model.metabolites.get_by_id(met.id)
+        m_reac_list = []
+        lb = ex_df.loc[row, ["Lower Bound", "Upper Bound"]]
+        for reaction in m_target.reactions:
+            if "EX_" not in reaction.id:
+                m_reac_list.append(reaction.id)
+        if len(m_reac_list) == 1:
+            print(f"{m_target.id} --> {m_target.name}")
+            print(lb.to_string())
+            print("-" * 40)
+            for reac_id in m_reac_list:
+                reac = model.reactions.get_by_id(reac_id)
+                print(f"{reac.id} - {reac.name}")
+                print(f"{reac.bounds} --> {reac.reversibility}")
+                if reac.reversibility is False:
+                    new_bounds = (reac.bounds[0], abs(float(lb["Lower Bound"])))
+                    reac.bounds = new_bounds
+            print("")
+
+# For the extracellular metabolites with only 1 transport reaction and reversibility
+for row in ex_df.loc[ex_df["Lower Bound"] < 0].index:
+    target = model.reactions.get_by_id(row)
+    for met in target.metabolites:
+        m_target = model.metabolites.get_by_id(met.id)
+        m_reac_list = []
+        lb = ex_df.loc[row, ["Lower Bound", "Upper Bound"]]
+        for reaction in m_target.reactions:
+            if "EX_" not in reaction.id:
+                m_reac_list.append(reaction.id)
+        if len(m_reac_list) == 1:
+            print(f"{m_target.id} --> {m_target.name}")
+            print(lb.to_string())
+            print("-" * 40)
+            for reac_id in m_reac_list:
+                reac = model.reactions.get_by_id(reac_id)
+                print(f"{reac.id} - {reac.name}")
+                print(f"{reac.bounds} --> {reac.reversibility}")
+                if reac.reversibility is True:
+                    new_bounds = (reac.bounds[0], abs(float(lb["Lower Bound"])))
+                    reac.bounds = new_bounds
+            print("")
+
+# For the extracellular metabolites with several transport reactions, irreversible and which not includes H+, H2O, Na+ or rxn13392_c0
+for row in ex_df.loc[ex_df["Lower Bound"] < 0].index:
+    target = model.reactions.get_by_id(row)
+    for met in target.metabolites:
+        m_target = model.metabolites.get_by_id(met.id)
+        m_reac_list = []
+        lb = ex_df.loc[row, ["Lower Bound", "Upper Bound"]]
+        for reaction in m_target.reactions:
+            if "EX_" not in reaction.id:
+                m_reac_list.append(reaction.id)
+        if len(m_reac_list) > 1 and float(lb["Lower Bound"]) > -100: # I had to add this to remove H+, H2O and Na+ from the selection
+            print("-" * 40)
+            print(f"{m_target.id} --> {m_target.name}")
+            print(lb.to_string())
+            print(f"number of reactions : {len(m_reac_list)}")
+            print("-" * 40)
+            for reac_id in m_reac_list:
+                reac = model.reactions.get_by_id(reac_id) 
+                if reac.reversibility == False and reac.bounds[0] != -1000: # to avoid rxn13392_c0 - putrescine transport in via proton antiport
+                    print(f"{reac.id} - {reac.name}")
+                    print(f"{reac.bounds} --> {reac.reversibility}")
+                    print("."*40)
+                    new_bounds = (reac.bounds[0], abs(float(lb["Lower Bound"])))
+                    reac.bounds = new_bounds
+            print("")
+            
+# For the extracellular metabolites with several transport reactions, irreversible and which not includes H+, H2O, Na+ or rxn13392_c0
+for row in ex_df.loc[ex_df["Lower Bound"] < 0].index:
+    target = model.reactions.get_by_id(row)
+    for met in target.metabolites:
+        m_target = model.metabolites.get_by_id(met.id)
+        m_reac_list = []
+        lb = ex_df.loc[row, ["Lower Bound", "Upper Bound"]]
+        for reaction in m_target.reactions:
+            if "EX_" not in reaction.id:
+                m_reac_list.append(reaction.id)
+        if len(m_reac_list) > 1 and float(lb["Lower Bound"]) > -100: # I had to add this to remove H+, H2O and Na+ from the selection
+            print("-" * 40)
+            print(f"{m_target.id} --> {m_target.name}")
+            print(lb.to_string())
+            print(f"number of reactions : {len(m_reac_list)}")
+            print("-" * 40)
+            for reac_id in m_reac_list:
+                reac = model.reactions.get_by_id(reac_id) 
+                if reac.reversibility == True:
+                    print(f"{reac.id} - {reac.name}")
+                    print(f"{reac.bounds} --> {reac.reversibility}")
+                    print("."*40)
+                    new_bounds = (reac.bounds[0], abs(float(lb["Lower Bound"])))
+                    reac.bounds = new_bounds
+            print("")
+
+for row in ex_df.loc[ex_df["Lower Bound"] < 0].index:
+    target = model.reactions.get_by_id(row)
+    for met in target.metabolites:
+        m_target = model.metabolites.get_by_id(met.id)
+        print(f"{m_target.id} --> {m_target.name}")
+        lb = ex_df.loc[row, ["Lower Bound", "Upper Bound"]]
+        print(lb.to_string())
+        print("-" * 40)
+        for reaction in m_target.reactions:
+            r_target = model.reactions.get_by_id(reaction.id)
+            if "EX_" not in r_target.id:
+                print(f"{r_target.id} - {r_target.name}")
+                print(f"{r_target.bounds}")
+        print("")
+
+2.2.2
+
+All exchange reactions bounds set to either (-1000,1000) or (0,1000) depending of previous reversibility
+
+2.2.3
+
+cpd00184_e0 = Metabolite(
+                    id=             "cpd00184_e0",
+                    name=           "Thymidine-e0",
+                    formula=        "C10H14N2O5",
+                    compartment=    "e0",
+                    )
+
+model.add_metabolites(cpd00184_e0)
+
+model.metabolites.get_by_id("cpd00184_e0")
+
+model.add_boundary(model.metabolites.get_by_id("cpd00184_e0"), type="exchange")
+
+rxn10892_c0 = Reaction(
+    id="rxn10892_c0",
+    name="thymidine transport in via sodium symport",
+    subsystem="",
+    lower_bound=-1000,
+    upper_bound=1000,
+)
+
+model.add_reactions([rxn10892_c0])
+
+target = model.reactions.get_by_id("rxn10892_c0")
+
+cpd00184_c0 = model.metabolites.get_by_id("cpd00184_c0")  # Thymidine c0
+cpd00184_e0 = model.metabolites.get_by_id("cpd00184_e0")  # Thymidine e0
+cpd00971_e0 = model.metabolites.get_by_id("cpd00971_e0")  # Na e0
+cpd00971_c0 = model.metabolites.get_by_id("cpd00971_c0")  # Na c0
+
+target.add_metabolites(
+    {cpd00184_e0: -1.0, cpd00971_e0: -1.0, cpd00184_c0: 1.0, cpd00971_c0: 1.0}
+)
+
+2.2.4
+
+cpd00367_e0 = model.metabolites.get_by_id("cpd00367_e0")
+
+model.add_boundary(cpd00367_e0, type="exchange")
+
+2.2.5
+
+# Palatinose Pathway
+## palatinose - cpd01200
+
+# palatinose extracellular
+cpd01200_e0 = Metabolite(
+    id="cpd01200_e0",
+    name="Palatinose-e0",
+    formula="C12H22O11",
+    compartment="e0",
+)
+
+# palatinose cytosol
+cpd01200_c0 = Metabolite(
+    id="cpd01200_c0",
+    name="Palatinose-c0",
+    formula="C12H22O11",
+    compartment="c0",
+)
+
+model.add_metabolites([cpd01200_e0, cpd01200_c0])
+
+# palatinose extracellular exchange reaction
+model.add_boundary(model.metabolites.get_by_id("cpd01200_e0"), type="exchange")
+
+# palatinose transport in via proton symport
+rxn05629_c0 = Reaction(
+    id="rxn05629_c0",
+    name="Palatinose transport in via proton symport",
+    subsystem="",
+    lower_bound=-1000,  # default
+    upper_bound=1000,  # default
+)
+
+# Adding palatinose transport reaction to model
+model.add_reactions([rxn05629_c0])
+
+cpd01200_c0 = model.metabolites.get_by_id("cpd01200_c0")  # palatinose c0
+cpd01200_e0 = model.metabolites.get_by_id("cpd01200_e0")  # palatinose e0
+cpd00067_c0 = model.metabolites.get_by_id("cpd00067_c0")  # H+ c0
+cpd00067_e0 = model.metabolites.get_by_id("cpd00067_e0")  # H+ e0
+
+# Adding metabolites to transport reaction
+rxn05629_c0.add_metabolites(
+    {cpd01200_e0: -1.0, cpd00067_e0: -1.0, cpd01200_c0: 1.0, cpd00067_c0: 1.0}
+)
+
+# Palatinose Reaction
+rxn13126_c0 = Reaction(
+    id="rxn13126_c0",
+    name="Palatinose alpha-1,6-glucohydrolase",
+    subsystem="",
+    lower_bound=-1000,  # default
+    upper_bound=1000,  # default
+)
+
+# Adding palatinose glucohydrolase to model
+model.add_reactions([rxn13126_c0])
+
+cpd00001_c0 = model.metabolites.get_by_id("cpd00001_c0") # H2O c0
+cpd19001_c0 = model.metabolites.get_by_id("cpd19001_c0") # a-D-Glucose c0
+cpd00082_c0 = model.metabolites.get_by_id("cpd00082_c0") # D-Fructose c0
+
+# Adding metabolites to palatinose hydrolysis reaction
+rxn13126_c0.add_metabolites(
+    {cpd01200_c0: -1, cpd00001_c0: -1, cpd19001_c0: 1, cpd00082_c0: 1}
+)
+
+model.metabolites.get_by_id("cpd01200_e0")
+model.reactions.get_by_id("rxn05629_c0")
+model.reactions.get_by_id("rxn13126_c0")
+
+2.2.6
+for met in model.metabolites:
+    if "_e0" in met.id and met.compartment == "e0":
+        print(f"{met.id} --> {met.name}")
+        print("-------------------------")
+        target_met = model.metabolites.get_by_id(met.id)
+        for rxn in target_met.reactions:
+            if "EX_" not in rxn.id:
+                if rxn.bounds[1] >= 0:
+                    print(f"{rxn.id} --> {rxn.name}")
+                    bounds = tuple([rxn.bounds[0], 1000])
+                    rxn.bounds = bounds
+                    print(rxn.bounds)
+        print("")
+
+2.2.7
+pala = model.reactions.get_by_id("rxn13126_c0")
+pala.bounds = (0,1000)
+
+2.2.8
