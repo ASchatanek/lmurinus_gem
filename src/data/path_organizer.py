@@ -2,7 +2,6 @@ from pathlib import Path
 from cobra.io import read_sbml_model, write_sbml_model
 import os
 import re
-import cobra
 
 
 class PathOrganizer:
@@ -15,24 +14,24 @@ class PathOrganizer:
         self.mo_name = None
         self.major_version = None
         self.minor_version = None
-        self.sv_pattern = rf"\d+\.\d+\.(\d+)\.sbml$"
+        self.sv_file_pattern = rf"\d+\.\d+\.(\d+)\.sbml$"
 
     # Functions
     def get_draft_model_path(self, draft_name):
-        self.data_dir = Path.cwd() / "data" / "raw" / draft_name
+        self.data_dir = Path.cwd() / "data" / "model_drafts" / draft_name
         self.data_dir = self.data_dir.resolve()
         return self.data_dir
 
     def get_models_main_folder_path(self, mo_name=None):
         if self.mo_name != None and mo_name == None:
-            self.model_dir = Path.cwd() / "models" / self.mo_name
+            self.model_dir = Path.cwd() / "data" / "model_versions" / self.mo_name
         else:
             if mo_name != None:
                 self.mo_name = mo_name
-                self.model_dir = Path.cwd() / "models" / self.mo_name
+                self.model_dir = Path.cwd() / "data" / "model_versions" / self.mo_name
             else:
                 self.mo_name = str(input("Name of Organism?"))
-                self.model_dir = Path.cwd() / "models" / self.mo_name
+                self.model_dir = Path.cwd() / "data" / "model_versions" / self.mo_name
 
         self.model_dir = self.model_dir.resolve()
         if self.model_dir.is_dir() is False:
@@ -49,19 +48,23 @@ class PathOrganizer:
 
         print("Available Model Versions:")
         for number, model_id in enumerate(os.listdir(self.model_dir)):
-            print(f"{number}) {model_id}")
+            if re.match(self.sv_file_pattern, model_id):
+                print(f"{number}) {model_id}")
 
-        self.target_mo_version = str(input("What model should be loaded?"))
+        self.target_mo_version = str(
+            input("What model version should be loaded? (Do not add " ".sbml" ")")
+        )
+        self.target_mo_version_file = f"{self.target_mo_version}.sbml"
 
-        match = re.match(self.sv_pattern, self.target_mo_version)
+        match = re.match(self.sv_file_pattern, self.target_mo_version_file)
 
         if match:
             self.target_mo_version_dir = os.path.join(
-                self.model_dir, self.target_mo_version
+                self.model_dir, self.target_mo_version_file
             )
             return self.target_mo_version_dir
         else:
-            "Model not found."
+            f"Model version {self.target_mo_version_file} not found."
 
     def load_model(self, path):
         self.model = read_sbml_model(str(path))
@@ -89,7 +92,7 @@ class PathOrganizer:
 
         if self.existing_models:
             self.patch_versions = [
-                int(re.match(self.sv_pattern, model_id).group(1))
+                int(re.match(self.sv_file_pattern, model_id).group(1))
                 for model_id in self.existing_models
             ]
             self.next_patch = max(self.patch_versions) + 1
