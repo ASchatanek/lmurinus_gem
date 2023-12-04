@@ -163,3 +163,7 @@ lala
 test = exploration.fetch_constrained_medium_fba_fluxes(percentage=0.5)
 
 test
+
+from pathlib import Path
+
+Path.cwd()
