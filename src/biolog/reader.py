@@ -17,19 +17,23 @@ class Reader:
         self.file_path.resolve()
         return self.file_path
 
-    def find_dataframe(self, file_name: str) -> pd.DataFrame:
+    def find_dataframe(self, file_name: str, sheet_name=None) -> pd.DataFrame:
         self.find_file(file_name=file_name)
 
-        file_sheet_names = pd.ExcelFile(self.file_path).sheet_names
+        if sheet_name != None:
+            self.df = pd.read_excel(self.file_path, sheet_name)
 
-        print("Available Sheet Names:")
-        for index, sheet_name in enumerate(file_sheet_names):
-            print(f"{index}. {sheet_name}")
-            print("")
+        else:
+            file_sheet_names = pd.ExcelFile(self.file_path).sheet_names
 
-        target_sheet = input("Which sheet should be loaded?")
+            print("Available Sheet Names:")
+            for index, sheet_name in enumerate(file_sheet_names):
+                print(f"{index}. {sheet_name}")
+                print("")
 
-        self.df = pd.read_excel(self.file_path, target_sheet)
+            target_sheet = input("Which sheet should be loaded?")
+
+            self.df = pd.read_excel(self.file_path, target_sheet)
 
         found_df = self.df.copy()
 

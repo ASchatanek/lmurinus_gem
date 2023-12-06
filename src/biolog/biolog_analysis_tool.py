@@ -19,7 +19,7 @@ class BAT:
         # Define variables for the process
         self.dif_df = pd.DataFrame(index=self.df.index, columns=self.df.columns)
 
-        # Use the information of the dataset hierarchy to calculcate the difference of each value to the "Water" value of each column
+        # Use the information of the dataset hierarchy to calculate the difference of each value to the "Water" value of each column
         samples = self.df.columns.get_level_values(level=0).unique()
         for sample in samples:
             tps = self.df.loc[:, sample].columns.get_level_values(level=0).unique()
