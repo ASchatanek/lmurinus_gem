@@ -32,17 +32,33 @@ cc2 = BAT(abs_df)
 cc2.data_analysis()
 
 test = BNT(dataframe=values_df)
-
 test2 = BNT(dataframe=abs_df)
 
-df = test.yeojohn_normalization().copy()
+df = test.yeojohn_normalization()
+df = df["23-47"]
 
-std = df.describe().copy()
+df2 = test2.yeojohn_normalization()
 
-std = std.loc["std", :]
+lala = cc.display_categories(cc.complete_df, columns="23-47")
+lala = cc.set_for_display(lala)
+# forestgreen
+# salmon
+# light-grey
+# mediumvioletred
+# lightskyblue
+# khaki
+# cornflowerblue
 
-test.display_data_categorization(dataframe=df["23-47"])
+display1 = test.display_categories(df)
+# display2 = cc.apply_style(df=cc.complete_df, columns="23-47")
+# display2 = cc.set_for_display(display2)
 
-ef = test2.yeojohn_normalization().copy()
+# display3 = test2.display_categories(df2)
+# display4 = cc2.apply_style(df=cc2.complete_df)
+# display4 = cc2.set_for_display(display4)
 
-test2.display_data_categorization(dataframe=ef)
+# import pandas as pd
+from IPython.display import display_html
+
+display_html(display1._repr_html_() + lala._repr_html_(), raw=True)
+# display_html(display3._repr_html_() + display4._repr_html_(), raw=True)

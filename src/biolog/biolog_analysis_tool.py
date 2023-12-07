@@ -258,17 +258,17 @@ class BAT:
         if value == "I":
             return "color : darkgrey"
         elif value == "B":
-            return "color : tomato"  # darkred
+            return "color : goldenrod"  # darkred
         elif value == "P":
-            return "color : royalblue"  # darkblue
+            return "color : forestgreen"  # darkblue
 
     def add_highlight(self, value):
         if value == "I":
             return "background-color : white"
         elif value == "B":
-            return "background-color : white"  # lightcoral
+            return "background-color : khaki"  # lightcoral
         elif value == "P":
-            return "background-color : white"  # lightblue
+            return "background-color : palegreen"  # lightblue
 
     def bold_values(self, value):
         if value == "I":
@@ -277,6 +277,36 @@ class BAT:
             return "font-weight: bold"
         elif value == "P":
             return "font-weight: bold"
+
+    def style_categories(self, value):
+        if value == "I":
+            return "color: darkgrey"
+        elif value == "B":
+            return "background-color: khaki; font-weight: bold; color: goldenrod"
+        elif value == "P":
+            return "background-color: palegreen; font-weight: bold; color: forestgreen"
+
+    def display_categories(self, dataframe: pd.DataFrame, tag_df=None, columns=None):
+        if tag_df is None:
+            tag_df = self.id_df
+
+        if columns is None:
+            dataframe = dataframe
+            return (
+                dataframe.style.set_properties(**{"background-color": "white"})
+                .apply(lambda x: tag_df.map(self.style_categories), axis=None)
+                .format(precision=2)
+            )
+        else:
+            dataframe = dataframe.loc[:, columns]
+            return (
+                dataframe.style.set_properties(**{"background-color": "white"})
+                .apply(
+                    lambda x: tag_df.loc[:, columns].map(self.style_categories),
+                    axis=None,
+                )
+                .format(precision=2)
+            )
 
     def apply_style(self, df: pd.DataFrame, tag_df=None, columns=None):
         if tag_df is None:

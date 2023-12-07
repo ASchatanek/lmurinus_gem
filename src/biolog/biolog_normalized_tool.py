@@ -37,12 +37,67 @@ class BNT:
 
         return self.dif_df
 
+    def calculation_ave(self) -> pd.DataFrame:
+        # Define variables for the process
+        self.tp_tuples = []
+
+        # Use the information of the hierarchy system to define the tuple list and dictionary
+        samples = self.df.columns.get_level_values(level=0).unique()
+        for sample in samples:
+            tps = self.df.loc[:, sample].columns.get_level_values(level=0).unique()
+            for tp in tps:
+                self.tp_tuples.append((sample, tp))
+
+        # Create MultiIndex columns
+        self.multi_columns = pd.MultiIndex.from_tuples(
+            self.tp_tuples, names=["Sample #", "TP"]
+        )
+
+        # Create empty dataframe with correct index and columns
+        self.ave_df = pd.DataFrame(index=self.df.index, columns=self.multi_columns)
+
+        # Calculate the average of plates for each row in the dataset
+        samples = self.ave_df.columns.get_level_values(level=0).unique()
+        for sample in samples:
+            tps = self.ave_df.loc[:, sample].columns.get_level_values(level=0).unique()
+            for tp in tps:
+                tp_average = self.dif_df.loc[:, (sample, tp)].mean(axis=1)
+                self.ave_df[sample, tp] = tp_average
+
+        # Sort and round columns of resulting dataframe
+        self.ave_df = self.ave_df.sort_index(axis=1)
+        # self.ave_df = self.ave_df.round(2)
+
+        # Returns dataframe with the average of the plates for each timepoint of each sample
+        return self.ave_df
+
+    def add_ave_dataframe(self) -> pd.DataFrame:
+        self.complete_df = self.dif_df.copy()
+
+        samples = self.complete_df.columns.get_level_values(level=0).unique()
+        for sample in samples:
+            tps = (
+                self.complete_df.loc[:, sample]
+                .columns.get_level_values(level=0)
+                .unique()
+            )
+            for tp in tps:
+                self.complete_df.loc[:, (sample, tp, "Plate Avg.")] = self.ave_df.loc[
+                    :, (sample, tp)
+                ]
+
+        self.complete_df = self.complete_df.sort_index(axis=1)
+
+        return self.complete_df
+
     def yeojohn_normalization(
         self,
     ) -> (
         pd.DataFrame
     ):  # function to normalize the difference dataframe with yeojohnson transformation approach
         self.calculation_dif()
+        self.calculation_ave()
+        self.add_ave_dataframe()
 
         self.norm_dict = dict()
 
@@ -50,9 +105,9 @@ class BNT:
             standardize=True
         )  # yeo-johnson transformation is the default method attribute
 
-        for column in self.dif_df.columns:
+        for column in self.complete_df.columns:
             norm_data = yeojohnTr.fit_transform(
-                self.dif_df[column].values.reshape(-1, 1)
+                self.complete_df[column].values.reshape(-1, 1)
             )
 
             norm_data = norm_data.reshape(1, len(norm_data))[0]
@@ -61,7 +116,7 @@ class BNT:
 
         self.normalized_df = pd.DataFrame.from_dict(self.norm_dict)
 
-        self.normalized_df.index = self.dif_df.index
+        self.normalized_df.index = self.complete_df.index
 
         return self.normalized_df
 
@@ -77,24 +132,29 @@ class BNT:
 
         return self.skew_df
 
-    def style_boundary(self, value):
+    def style_categories(self, column, limit_i=1.5, limit_b=2):
         std = 1.005249
+        result = []
 
-        boundary = [1.5 * std < v <= 2 * std for v in value]
+        for cell in column:
+            if cell <= limit_i * std:
+                result.append("background-color: white;color: darkgrey")
+            elif cell > limit_i and cell <= limit_b:
+                result.append(
+                    "background-color: khaki; font-weight: bold; color: goldenrod"
+                )
+            else:
+                result.append(
+                    "background-color: palegreen; font-weight: bold; color: forestgreen"
+                )
 
-        return [f"color: tomato" if i else None for i in boundary]
+        return result
 
-    def style_positive(self, value):
-        std = 1.005249
-
-        positive = value > 2 * std
-
-        return [f"color: royalblue" if i else None for i in positive]
-
-    def display_data_categorization(self, dataframe):
-        result = dataframe.style.apply(self.style_positive, axis=1).apply(
-            self.style_boundary, axis=1
+    def display_categories(self, dataframe: pd.DataFrame, limit_i=1.5, limit_b=2):
+        result = dataframe.style.set_table_attributes("style='display:inline'").apply(
+            self.style_categories, limit_i=limit_i, limit_b=limit_b, axis=1
         )
+
         return result
 
     def display_yeojohn_norm(self, target_columns=None):
