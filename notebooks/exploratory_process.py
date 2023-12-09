@@ -1,7 +1,12 @@
+import set_cwd
+import pandas_settings
 from src import PathOrganizer
 from src import Model_Exploration_Tool as es
-
 import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+%matplotlib inline
 
 pd.set_option("display.max_rows", 500)
 pd.set_option("display.max_columns", 500)
@@ -157,9 +162,80 @@ exploration = es(model=model)
 exploration.set_media(medium=kwoji_updated, essential=essential, closed=closed_uptake)
 
 lala = exploration.contrained_medium_fba_analysis(percentage=0.5)
+test = exploration.fetch_test(percentage=0.5)
+okok = test.copy()
 
-lala
+sec = okok[okok["exchange type"] == "Secretion"]
+sect = sec.iloc[:, 5:].copy()
 
-test = exploration.fetch_constrained_medium_fba_fluxes(percentage=0.5)
+upt = okok[okok["exchange type"] == "Uptake"]
+uptt = upt.iloc[:, 5:].copy()
 
-test
+for column in sect.columns:
+    
+    sect[column] = sect[column] / okok["original"]
+    sect[column] = sect[column]
+    
+sect = sect.round(2)
+
+for column in uptt.columns:
+    
+    uptt[column] = uptt[column] / okok["original"]
+    uptt[column] = uptt[column]
+    
+uptt = uptt.round(2)
+
+sect
+uptt
+
+fig, ax = plt.subplots(figsize=(25,20))
+outliers = uptt.map(lambda v: v if v > 1 or v < -1 else "")
+heatmap = sns.heatmap(data=uptt, linewidths=0.1, ax=ax, annot=outliers, annot_kws={"fontsize" : 9}, fmt="", cmap="PRGn", vmax=2, vmin=-2)
+
+xlabels = []
+ylabels = []
+for column in heatmap.get_xticklabels():
+    t = column.get_text()
+    target_rxn = model.reactions.get_by_id(t)
+    for met in target_rxn.metabolites:
+        target_met = met.name
+        xlabels.append(target_met)
+
+for index in heatmap.get_yticklabels():
+    i = index.get_text()
+    target_rxn = model.reactions.get_by_id(i)
+    for met in target_rxn.metabolites:
+        target_met = met.name
+        ylabels.append(target_met)
+
+heatmap.set_xticklabels(xlabels, rotation = 45, horizontalalignment = "left")
+heatmap.set_yticklabels(ylabels)
+heatmap.xaxis.tick_top()
+plt.tight_layout()
+plt.show()
+
+fig, ax = plt.subplots(figsize=(25,20))
+outliers = sect.map(lambda v: v if v > 1 or v < -1 else "")
+heatmap = sns.heatmap(data=sect, linewidths=0.1, ax=ax, annot=outliers, annot_kws={"fontsize" : 9}, fmt="", cmap="PRGn", vmax=2, vmin=-2)
+
+xlabels = []
+ylabels = []
+for column in heatmap.get_xticklabels():
+    t = column.get_text()
+    target_rxn = model.reactions.get_by_id(t)
+    for met in target_rxn.metabolites:
+        target_met = met.name
+        xlabels.append(target_met)
+
+for index in heatmap.get_yticklabels():
+    i = index.get_text()
+    target_rxn = model.reactions.get_by_id(i)
+    for met in target_rxn.metabolites:
+        target_met = met.name
+        ylabels.append(target_met)
+
+heatmap.set_xticklabels(xlabels, rotation = 45, horizontalalignment = "left")
+heatmap.set_yticklabels(ylabels)
+heatmap.xaxis.tick_top()
+plt.tight_layout()
+plt.show()
