@@ -1,13 +1,26 @@
-import pandas as pd
-import numpy as np
 import cobra
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 
 class Model_Exploration_Tool:
+
+    """Exploration tool for GEM models. Includes a variety of methods to display reactions, set media components and analyse media contraining effects on the model´s predictions."""
+
     def __init__(self, model: cobra.core.model.Model) -> None:
         self.model = model
+        self.model.optimize()
 
     def print_reactions_from_metabolite(self, target_metabolite_id: str) -> None:
+        """Prints reactions associated to a specific metabolite ID. It displayes the individual reactions´ ID, name along with the reactions stochiometry with IDs and names.
+
+        Parameters
+        ----------
+        target_metabolite_id : str
+            Target metabolite ID for which the reactions should be printed out.
+        """
         target_metabolite = self.model.metabolites.get_by_id(target_metabolite_id)
 
         print("---- Metabolite Target Information ----")
@@ -30,11 +43,26 @@ class Model_Exploration_Tool:
     def set_media(
         self,
         medium: list or dict,
-        essential=None,
-        closed=None,
-        lowerbound=0,
-        upperbound=1000,
+        essential: list = None,
+        closed: list = None,
+        lowerbound: float = 0.0,
+        upperbound: float = 1000.0,
     ):
+        """Updates the current model´s media by fetching exchange reaction IDs and their bounds from different dictionaries or lists.
+
+        Parameters
+        ----------
+        medium : listordict
+            Exchange reaction IDs for the media components stored as a dictionary or list. In dictionaries the IDs and their bounds (as tuple) should be stored as key and values respectively. Bounds for IDs contained in lists are set as (-1000,1000).
+        essential : list, optional
+            List of exchange reaction IDs that are set as open, meaning their bounds are (-1000, 1000). Default is None.
+        closed : list, optional
+            List of exchange reaction IDs that are set as closed for uptake, meaning their bounds are (0, 1000). Default is None.
+        lowerbound : float, optional
+            Float value that define the lowerbound for any exchange reaction that isn´t included in "medium", "essential" and "closed" variables. Default is 0.0.
+        upperbound : float, optional
+            Float value that define the upperbound for any exchange reaction that isn´t included in "medium", "essential" and "closed" variables. Default is 1000.0.
+        """
         for ex_rxn in self.model.exchanges:
             ex_rxn.bounds = (lowerbound, upperbound)
 
@@ -59,7 +87,19 @@ class Model_Exploration_Tool:
                 med_comp_tgt_rxn.bounds = med_comp_rxn_bounds
 
     #! FVA only works if this the analysis is done on a jupyter notebook file
-    def gather_media_fluxes(self, fva_fraction=None):
+    def gather_media_fluxes(self, fva_fraction: float = None) -> pd.DataFrame:
+        """Performs a FBA optimization on the model and returns dataframes containing the resulting uptaken and secreted metabolites along with their flux information.
+
+        Parameters
+        ----------
+        fva_fraction : float, optional
+            Decimal fraction representing the FVA optimization percentage. If defined the dataframes will also contain resulting FVA predictions. WARNING: This attribute only works if the method is done on a jupyter notebook.
+
+        Returns
+        -------
+        pd.Dataframe
+            Returns the uptaken and secreted metabolites with their predicted fluxes (and FVA predictions if defined) as a pandas Dataframe.
+        """
         up_met_names = {}
         sec_met_names = {}
 
@@ -94,7 +134,23 @@ class Model_Exploration_Tool:
 
         return self.uptake_df, self.secretion_df
 
-    def find_medium_outliers(self, target_df: pd.DataFrame, medium: list or dict):
+    def find_medium_outliers(
+        self, target_df: pd.DataFrame, medium: list or dict
+    ) -> pd.DataFrame:
+        """Identifies any metabolites that result from an FBA optimization and are not included in the current model´s medium.
+
+        Parameters
+        ----------
+        target_df : pd.DataFrame
+            Pandas dataframe in from which possible outliers should be identified from. Intented to be used with the resulting dataframes from method "gather_media_fluxes".
+        medium : listordict
+            List of dictionary containing the exchange reaction IDs. To be used to identify any exchange reaction not included in this list but included in the target_df variable. Intended to be used with the medium list of dictionary used in method "set_media".
+
+        Returns
+        -------
+        pd.DataFrame
+            Returns dataframe containing any outliers and their information not present in the medium list/dictionary but included in the target_df dataframe.
+        """
         if type(medium) == list:
             dif_df = target_df[~target_df["reaction"].isin(medium)]
             return dif_df
@@ -103,6 +159,18 @@ class Model_Exploration_Tool:
             return dif_df
 
     def carbon_source_variation_analysis(self, carbon_list: list) -> pd.DataFrame:
+        """Generates a pandas dataframe containing the resulting FBA predictions for different carbon sources on the current model´s media as well as the prediction without any source.
+
+        Parameters
+        ----------
+        carbon_list : list
+            List containing the exchange reaction IDs for different carbon sources.
+
+        Returns
+        -------
+        pd.DataFrame
+            Returns a pandas dataframe containing the carbon source metabolite name, the predicted objective function value and the predicted flux for their corresponding exchange reaction.
+        """
         c_source_prediction_results = dict()
 
         # Optimization without C-Source
@@ -142,6 +210,19 @@ class Model_Exploration_Tool:
     # TODO: docstring description of each function once finished with optimizing naming
 
     def reduced_uptake_fba_analysis(self, percentage: float = 1.0) -> pd.DataFrame:
+        """Method to analyse the effects of contraining the uptake of individual medium components on the model´s predicted secretion and uptake fluxes. An iterative process takes the individual components of the current defined model´s medium. Then, while using the "with" statement, modifies the current uptake bound (neg. lowerbound) by the defined percentage and performs an FBA optimization. Using the "summary()" method, the secreted and uptaked fluxes are retrieved and stored.
+
+        Parameters
+        ----------
+        percentage : float, optional
+            Decimal value (1.0 being 100%) to which the individual components uptake bound should be modified to. Default is 1.0.
+
+        Returns
+        -------
+        pd.DataFrame
+            Returns a pandas dataframe containing the secretion and uptake resulting fluxes for each contrained component of the current model´s medium. Additionally, an "original" column containing the predicted secretion and uptake results without any contrained uptake bounds is added as reference.
+        """
+
         # Stores the different pandas series containing the fluxes of the uptaken and secreted metabolites generated in each FBA calculation
         flux_series_dict = dict()
         met_names_dict = dict()
@@ -150,7 +231,7 @@ class Model_Exploration_Tool:
         # The medium of the model is updated based on which fluxes appear as open (in this case the lower bounds)
         medium = self.model.medium
 
-        # List containing the list of the exchange reaction IDs of the "available" metabolites
+        # List containing the exchange reaction IDs of the "available" metabolites
         medium_ex_rxn_list = list(medium.keys())
 
         self.model.optimize()
@@ -221,6 +302,18 @@ class Model_Exploration_Tool:
     def fetch_constrained_medium_fba_fluxes(
         self, percentage: float = 1.0
     ) -> pd.DataFrame:
+        """Gathers resulting fluxes of the current medium components after perfoming an optimization while iteratively constraining one individual components´ bounds to their predicted optimum flux.
+
+        Parameters
+        ----------
+        percentage : float, optional
+            Percentile decimal value to which the predicted optimum flux of each medium component should be contrained to. Default is 1.0 (100%).
+
+        Returns
+        -------
+        pd.DataFrame
+            Returns dataframe containing the predicted fluxes for the components of the model´s current medium.
+        """
         # List containing the list of the exchange reaction IDs of the "available" metabolites
         column_order = ["reaction", "metabolite", "met. names", "flux"]
         medium_ex_rxn_list = list(self.model.medium.keys())
@@ -281,15 +374,9 @@ class Model_Exploration_Tool:
 
         return complete_solution
 
-    def __define_flux_type(self, value):
-        if value < 0:
-            return "Secretion"
-        if value == 0:
-            return "No Flux"
-        elif value > 0:
-            return "Uptake"
-
-    def fetch_test(self, percentage: float = 1.0) -> pd.DataFrame:
+    def fetch_constrained_sec_and_upt_fluxes(
+        self, percentage: float = 1.0
+    ) -> pd.DataFrame:
         # List containing the list of the exchange reaction IDs of the "available" metabolites
         column_order = ["reaction", "metabolite", "met. names", "flux"]
         medium_ex_rxn_list = list(self.model.medium.keys())
@@ -353,21 +440,122 @@ class Model_Exploration_Tool:
 
         return complete_solution
 
-    def contrained_medium_fba_analysis(self, percentage: float = 1.0) -> pd.DataFrame:
-        constrained_results_df = self.fetch_constrained_medium_fba_fluxes(
+    def __define_flux_type(self, value):
+        if value < 0:
+            return "Secretion"
+        if value == 0:
+            return "No Flux"
+        elif value > 0:
+            return "Uptake"
+
+    def constrained_fba_analysis(self, percentage: float = 1.0) -> pd.DataFrame:
+        complete_constr_df = self.fetch_constrained_sec_and_upt_fluxes(
             percentage=percentage
         )
 
-        for result in constrained_results_df.iloc[:, 5:]:
-            constrained_results_df.loc[:, result] = round(
-                constrained_results_df.loc[:, result]
-                - constrained_results_df["original"],
-                ndigits=5,
+        sec_complete_df = complete_constr_df[
+            complete_constr_df["exchange type"] == "Secretion"
+        ]
+        sec_results_df = sec_complete_df.iloc[:, 5:].copy()
+
+        upt_complete_df = complete_constr_df[
+            complete_constr_df["exchange type"] == "Uptake"
+        ]
+        upt_results_df = upt_complete_df.iloc[:, 5:].copy()
+
+        for column in sec_results_df:
+            sec_results_df[column] = (
+                sec_results_df[column] / sec_complete_df["original"]
+            )
+            sec_results_df[column] = sec_results_df[column]
+
+        sec_results_df = sec_results_df.round(2)
+
+        for column in upt_results_df:
+            upt_results_df[column] = (
+                upt_results_df[column] / upt_complete_df["original"]
             )
 
-            # constrained_results_df.loc[:, result] = constrained_results_df.loc[:,]
+        upt_results_df = upt_results_df.round(2)
 
-        return constrained_results_df
+        return sec_results_df, upt_results_df
+
+    def display_hm_constrained_medium_fba_analysis(self, percentage: float = 1.0):
+        sec_df, upt_df = self.constrained_fba_analysis(percentage=percentage)
+
+        fig, ax = plt.subplots(figsize=(25, 20))
+        outliers = upt_df.map(lambda v: v if v > 1 or v < -1 else "")
+        upt_hm = sns.heatmap(
+            data=upt_df,
+            linewidths=0.1,
+            ax=ax,
+            annot=outliers,
+            annot_kws={"fontsize": 9},
+            fmt="",
+            cmap="PRGn",
+            vmax=2,
+            vmin=-2,
+        )
+
+        upt_x_labels = []
+        upt_y_labels = []
+
+        for column in upt_hm.get_xticklabels():
+            c_text = column.get_text()
+            target_rxn = self.model.reactions.get_by_id(c_text)
+            for met in target_rxn.metabolites:
+                target_met = met.name
+                upt_x_labels.append(target_met)
+
+        for index in upt_hm.get_yticklabels():
+            i_text = index.get_text()
+            target_rxn = self.model.reactions.get_by_id(i_text)
+            for met in target_rxn.metabolites:
+                target_met = met.name
+                upt_y_labels.append(target_met)
+
+        upt_hm.set_xticklabels(upt_x_labels, rotation=45, horizontalalignment="left")
+        upt_hm.set_yticklabels(upt_y_labels)
+        upt_hm.xaxis.tick_top()
+        plt.tight_layout()
+        plt.show()
+
+        fig, ax = plt.subplots(figsize=(25, 20))
+        outliers = sec_df.map(lambda v: v if v > 1 or v < -1 else "")
+        sec_hm = sns.heatmap(
+            data=sec_df,
+            linewidths=0.1,
+            ax=ax,
+            annot=outliers,
+            annot_kws={"fontsize": 9},
+            fmt="",
+            cmap="PRGn",
+            vmax=2,
+            vmin=-2,
+        )
+
+        sec_x_labels = []
+        sec_y_labels = []
+
+        for column in sec_hm.get_xticklabels():
+            c_text = column.get_text()
+            target_rxn = self.model.reactions.get_by_id(c_text)
+            for met in target_rxn.metabolites:
+                target_met = met.name
+                sec_x_labels.append(target_met)
+
+        for index in sec_hm.get_yticklabels():
+            i_text = index.get_text()
+            target_rxn = self.model.reactions.get_by_id(i_text)
+            for met in target_rxn.metabolites:
+                target_met = met.name
+                sec_y_labels.append(target_met)
+
+        sec_hm.set_xticklabels(sec_x_labels, rotation=45, horizontalalignment="left")
+        sec_hm.set_yticklabels(sec_y_labels)
+        sec_hm.xaxis.tick_top()
+        plt.tight_layout()
+        plt.show()
 
     def single_varying_uptake_FBA_analysis(self, target_exchange=None):
         # Stores the different pandas series containing the fluxes of the uptaken and secreted metabolites generated in each FBA calculation
