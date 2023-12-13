@@ -302,7 +302,7 @@ class Model_Exploration_Tool:
     def fetch_constrained_medium_fba_fluxes(
         self, percentage: float = 1.0
     ) -> pd.DataFrame:
-        """Gathers resulting fluxes of the current medium components after perfoming an optimization while iteratively constraining one individual components´ bounds to their predicted optimum flux.
+        """Gathers medium components´ fluxes resulting of individual component contrained FBA predictions. The constrain is the predicted optimal value modified by a defined percentile value.
 
         Parameters
         ----------
@@ -377,6 +377,18 @@ class Model_Exploration_Tool:
     def fetch_constrained_sec_and_upt_fluxes(
         self, percentage: float = 1.0
     ) -> pd.DataFrame:
+        """Gathers secretion and uptake fluxes resulting of individual component contrained FBA predictions. The constrain is the predicted optimal value modified by a defined percentile value.
+
+        Parameters
+        ----------
+        percentage : float, optional
+            Percentile decimal value to which the predicted optimum flux of each medium component should be contrained to. Default is 1.0 (100%). Default is 1.0.
+
+        Returns
+        -------
+        pd.DataFrame
+            Returns dataframe containing the predicted secretion and uptake fluxes for each constrained optimization. Unconstrained values added as column "original" as reference.
+        """
         # List containing the list of the exchange reaction IDs of the "available" metabolites
         column_order = ["reaction", "metabolite", "met. names", "flux"]
         medium_ex_rxn_list = list(self.model.medium.keys())
@@ -449,6 +461,18 @@ class Model_Exploration_Tool:
             return "Uptake"
 
     def constrained_fba_analysis(self, percentage: float = 1.0) -> pd.DataFrame:
+        """Analysis feches dataframe from method "fetch_constrained_sec_and_upt_fluxes", separates secreted and uptake fluxes and calculates the fractional relationship to the original value.
+
+        Parameters
+        ----------
+        percentage : float, optional
+            Percentile decimal value to which the predicted optimum flux of each medium component should be contrained to. Default is 1.0 (100%). Default is 1.0.
+
+        Returns
+        -------
+        pd.DataFrame
+            Return both the resulting secretion and uptake dataframe.
+        """
         complete_constr_df = self.fetch_constrained_sec_and_upt_fluxes(
             percentage=percentage
         )
@@ -481,6 +505,13 @@ class Model_Exploration_Tool:
         return sec_results_df, upt_results_df
 
     def display_hm_constrained_medium_fba_analysis(self, percentage: float = 1.0):
+        """Generates resulting secretion and uptake dataframes using method "contrained_fba_analysis" and displayes the information as two separate heatmaps.
+
+        Parameters
+        ----------
+        percentage : float, optional
+            Percentile decimal value to which the predicted optimum flux of each medium component should be contrained to. Default is 1.0 (100%). Default is 1.0.
+        """
         sec_df, upt_df = self.constrained_fba_analysis(percentage=percentage)
 
         fig, ax = plt.subplots(figsize=(25, 20))
@@ -557,7 +588,19 @@ class Model_Exploration_Tool:
         plt.tight_layout()
         plt.show()
 
-    def single_varying_uptake_FBA_analysis(self, target_exchange=None):
+    def single_varying_uptake_FBA_analysis(self, target_exchange: str) -> pd.DataFrame:
+        """Generates dataframe containing the secretion and uptake fluxes of FBA predictions with percentually changing bounds of a target exchange reaction.
+
+        Parameters
+        ----------
+        target_exchange : str
+            Target exchange reaction ID.
+
+        Returns
+        -------
+        pd.Dataframe
+            Returns dataframe containing the resulting fluxes of the percentual modification indicated as the name of each column.
+        """
         # Stores the different pandas series containing the fluxes of the uptaken and secreted metabolites generated in each FBA calculation
         flux_series_dict = dict()
         met_names_dict = dict()
@@ -589,12 +632,6 @@ class Model_Exploration_Tool:
         original_solution = original_solution.reindex(columns=column_order).rename(
             columns={"flux": "original"}
         )
-
-        # This loop will perform several things:
-        # * (Any changes done to the model will not be saved by using the "with" statement)
-        ## - Use the available information in the medium to set the reduced uptake values
-        ## - Uptake the targets bounds with the reduced value
-        ## - Optimize and gather fluxes based on the medium_exrxn_list
 
         if target_exchange != None:
             for exrxn in medium_exrxn_list:

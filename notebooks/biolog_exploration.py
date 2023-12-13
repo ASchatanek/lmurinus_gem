@@ -34,13 +34,12 @@ cc2.data_analysis()
 test = BNT(dataframe=values_df)
 test2 = BNT(dataframe=abs_df)
 
+
 df = test.yeojohn_normalization()
 df = df["23-47"]
 
-df2 = test2.yeojohn_normalization()
+test.display_categories(dataframe=df)
 
-lala = cc.display_categories(cc.complete_df, columns="23-47")
-lala = cc.set_for_display(lala)
 # forestgreen
 # salmon
 # light-grey
@@ -60,5 +59,4 @@ display1 = test.display_categories(df)
 # import pandas as pd
 from IPython.display import display_html
 
-display_html(display1._repr_html_() + lala._repr_html_(), raw=True)
 # display_html(display3._repr_html_() + display4._repr_html_(), raw=True)
