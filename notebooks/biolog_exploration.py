@@ -25,38 +25,34 @@ values_df = df_cleaner.cleaNorganize(biolog_values, compounds=biolog_compounds)
 biolog_raw_id_df = df_cleaner.cleaNorganize(biolog_ids, compounds=biolog_compounds)
 abs_df = df_cleaner.cleaNorganize(abs_values, compounds=biolog_compounds)
 
-cc = BAT(values_df)
-cc.data_analysis()
-
-cc2 = BAT(abs_df)
-cc2.data_analysis()
-
 test = BNT(dataframe=values_df)
 test2 = BNT(dataframe=abs_df)
 
+test.yeojohn_normalization(dataframe=test.complete_df)
 
-df = test.yeojohn_normalization()
-df = df["23-47"]
+test.generate_skewness_data(dataframe=test.complete_df)
 
-test.display_categories(dataframe=df)
+test.skew_df.loc[["23-36", "23-38", "23-47"]].map("{:.2f}".format)
 
-# forestgreen
-# salmon
-# light-grey
-# mediumvioletred
-# lightskyblue
-# khaki
-# cornflowerblue
+lala = test.identify_result_type(dataframe=test.normalized_df, limit_i=1.5, limit_b=2.0)
+lala
 
-display1 = test.display_categories(df)
-# display2 = cc.apply_style(df=cc.complete_df, columns="23-47")
-# display2 = cc.set_for_display(display2)
+# test.yeojohn_normalization(dataframe=test.complete_df)
+# coco = test.normalized_df["23-47"]
+# coco.describe().map("{:.2f}".format)
+# coco = coco.rename_axis(["Timepoints", "Plate Number"], axis="columns")
 
-# display3 = test2.display_categories(df2)
-# display4 = cc2.apply_style(df=cc2.complete_df)
-# display4 = cc2.set_for_display(display4)
+# import matplotlib.pyplot as plt
+# import seaborn as sns
 
-# import pandas as pd
-from IPython.display import display_html
+# columns = coco.columns.get_level_values(level=0).unique()
+# for column in columns:
+#     plt.figure(figsize=(8, 8))  # Set the figure size (optional)
+#     sns.boxplot(data=coco[column], width=0.5, whis=1)
+#     plt.title(f"Boxplots of Plates at Timepoint {column}")  # Set title with column name
+#     plt.xlabel("Plates")  # Set x-axis label (if needed)
+#     plt.ylabel("Normalized Data")  # Set y-axis label (if needed)
+#     plt.grid(True)  # Add gridlines (optional)
+#     plt.show()
 
-# display_html(display3._repr_html_() + display4._repr_html_(), raw=True)
+biolog_raw_id_df

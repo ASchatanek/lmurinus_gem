@@ -1,7 +1,8 @@
+import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import seaborn as sns
 import scipy.stats as stats
+import matplotlib.pyplot as plt
 from sklearn.preprocessing import PowerTransformer
 
 sns.set_theme()
@@ -20,6 +21,10 @@ class BNT:
             Raw BIOLOG results dataframe. "Cleaner" tool´s "cleaNorganize" method returns the dataframe with the required structure.
         """
         self.df = dataframe
+
+        self.calculation_dif()
+        self.calculation_ave()
+        self.add_ave_dataframe()
 
     def calculation_dif(self) -> pd.DataFrame:
         """Calculates columnwise the difference of each value to the negative control ("Water" as blank) which is the first value of the column.
@@ -120,7 +125,7 @@ class BNT:
 
         return self.complete_df
 
-    def yeojohn_normalization(self) -> pd.DataFrame:
+    def yeojohn_normalization(self, dataframe) -> pd.DataFrame:
         """Method transforms the complete difference dataframe optained from methods "calculation_dif", "calculation_ave" and "add_ave_dataframe" by normalizing the data per column using the Yeo-Johnson approach.
 
         Returns
@@ -128,10 +133,8 @@ class BNT:
         pd.DataFrame
             Returns a dataframe containing the normalized data.
         """
-        # function to normalize the difference dataframe with yeojohnson transformation approach
-        self.calculation_dif()
-        self.calculation_ave()
-        self.add_ave_dataframe()
+
+        target_df = dataframe
 
         self.norm_dict = dict()
 
@@ -139,10 +142,8 @@ class BNT:
             standardize=True
         )  # yeo-johnson transformation is the default method attribute
 
-        for column in self.complete_df.columns:
-            norm_data = yeojohnTr.fit_transform(
-                self.complete_df[column].values.reshape(-1, 1)
-            )
+        for column in target_df.columns:
+            norm_data = yeojohnTr.fit_transform(target_df[column].values.reshape(-1, 1))
 
             norm_data = norm_data.reshape(1, len(norm_data))[0]
 
@@ -150,11 +151,11 @@ class BNT:
 
         self.normalized_df = pd.DataFrame.from_dict(self.norm_dict)
 
-        self.normalized_df.index = self.complete_df.index
+        self.normalized_df.index = target_df.index
 
         return self.normalized_df
 
-    def generate_skewness_data(self) -> pd.DataFrame:
+    def generate_skewness_data(self, dataframe) -> pd.DataFrame:
         """Gathers the skewness value of each dataset (columnwise) before and after normalization using the Yeo-Johnson approach.
 
         Returns
@@ -162,8 +163,8 @@ class BNT:
         pd.DataFrame
             Returns a pandas dataframe containing the skewness information before and after normalization for each defined dataset.
         """
-        self.yeojohn_normalization()
-        old_skew = self.dif_df.skew()
+        self.yeojohn_normalization(dataframe=dataframe)
+        old_skew = self.complete_df.skew()
         new_skew = self.normalized_df.skew()
 
         skew_dict = {"Before Trans.": old_skew, "After Trans.": new_skew}
@@ -172,6 +173,60 @@ class BNT:
         self.skew_df.Name = "Skewness Information"
 
         return self.skew_df
+
+    def identify_result_type(
+        self,
+        dataframe: pd.DataFrame,
+        limit_i: float = 1.0,
+        limit_b: float = 1.8,
+        std: float = 1.005249,
+    ) -> pd.DataFrame:
+        tags = ["I", "B", "P"]
+
+        target_df = dataframe
+
+        self.id_df = pd.DataFrame(index=target_df.index, columns=target_df.columns)
+
+        samples = target_df.columns.get_level_values(level=0).unique()
+        for sample in samples:
+            tps = self.id_df.loc[:, sample].columns.get_level_values(level=0).unique()
+            for tp in tps:
+                plates = (
+                    self.id_df.loc[:, (sample, tp)]
+                    .columns.get_level_values(level=0)
+                    .unique()
+                )
+                for plate in plates:
+                    target = target_df.loc[:, (sample, tp, plate)]
+
+                    conditions = [
+                        (target <= limit_i * std),
+                        (target > limit_i) & (target <= limit_b),
+                        (target > limit_b),
+                    ]
+                    self.id_df[(sample, tp, plate)] = np.select(conditions, tags)
+
+        return self.id_df
+
+    def conditional_formatting(
+        self,
+        cell,
+        limit_i: float,
+        limit_b: float,
+        bg_color_bdry: str,
+        hl_color_bdry: str,
+        bg_color_pos: str,
+        hl_color_pos: str,
+        std: float = 1.005249,
+    ):
+        if cell <= limit_i * std:
+            return "background-color: white;color: darkgrey"
+
+        elif cell > limit_i and cell <= limit_b:
+            return f"background-color: {bg_color_bdry}; font-weight: bold; color: {hl_color_bdry}"
+
+        else:
+            return f"background-color: {bg_color_pos}; font-weight: bold; color: {hl_color_pos}"
 
     def style_categories(
         self,
@@ -207,66 +262,69 @@ class BNT:
         _type_
             Conditional formatting for analyzed cell.
         """
-        std = 1.005249
         result = []
 
         for cell in column:
-            if cell <= limit_i * std:
-                result.append("background-color: white;color: darkgrey")
-            elif cell > limit_i and cell <= limit_b:
-                result.append(
-                    f"background-color: {bg_color_bdry}; font-weight: bold; color: {hl_color_bdry}"
-                )
-            else:
-                result.append(
-                    f"background-color: {bg_color_pos}; font-weight: bold; color: {hl_color_pos}"
-                )
+            cf = self.conditional_formatting(
+                limit_i=limit_i,
+                limit_b=limit_b,
+                bg_color_bdry=bg_color_bdry,
+                hl_color_bdry=hl_color_bdry,
+                bg_color_pos=bg_color_pos,
+                hl_color_pos=hl_color_pos,
+                cell=cell,
+            )
+            result.append(cf)
 
         return result
 
     def display_categories(
         self,
         dataframe: pd.DataFrame,
-        limit_i=1.5,
-        limit_b=2,
-        bg_color_bdry: str = "khaki",
-        hl_color_bdry: str = "goldenrod",
-        bg_color_pos: str = "palegreen",
-        hl_color_pos: str = "forestgreen",
+        limit_i: float = 1.0,
+        limit_b: float = 1.8,
+        bg_color_bdry: str = "bisque",
+        hl_color_bdry: str = "darkorange",
+        bg_color_pos: str = "paleturquoise",
+        hl_color_pos: str = "steelblue",
     ):
-        """Displays normalized data with color categorization depending on defined limit values. Limit_i
+        """Displays normalized data with color categorization depending on defined limit values.
 
         Parameters
         ----------
         dataframe : pd.DataFrame
             Target pandas dataframe which should be displayed with the categorization.
         limit_i : float, optional
-            Percentage as a decimal value used to define the "indifferent" category limit. This value represent the percentual amount of the standard deviation (1.0 = 100%). Default is 1.5.
+            Percentage as a decimal value used to define the "indifferent" category limit. This value represent the percentual amount of the standard deviation (1.0 = 100%). Default is 0.7.
         limit_b : int, optional
-            Percentage as a decimal value used to define the "boundary" category limit. This value represent the percentual amount of the standard deviation (1.0 = 100%). Anything within "limit_i" and "limit_b" is considered "boundary". Default is 2.0.
+            Percentage as a decimal value used to define the "boundary" category limit. This value represent the percentual amount of the standard deviation (1.0 = 100%). Anything within "limit_i" and "limit_b" is considered "boundary". Default is 1.8.
         bg_color_bdry : str, optional
-            Background color for values categorized as "boundary". Default is "khaki".
+            Background color for values categorized as "boundary". Default is "bisque".
         hl_color_bdry : str, optional
-            Highlight color for values categorized as "boundary". Default is "goldenrod".
+            Highlight color for values categorized as "boundary". Default is "darkorange".
         bg_color_pos : str, optional
-            Background color for values categorized as "positive". Default is "palegreen".
+            Background color for values categorized as "positive". Default is "paleturquoise".
         hl_color_pos : str, optional
-            Highlight color for values categorized as "positive". Default is "forestgreen".
+            Highlight color for values categorized as "positive". Default is "steelblue".
 
         Returns
         -------
         _type_
             Returns the dataframe with the conditional formatting applied.
         """
-        result = dataframe.style.set_table_attributes("style='display:inline'").apply(
-            self.style_categories,
-            limit_i=limit_i,
-            limit_b=limit_b,
-            bg_color_bdry=bg_color_bdry,
-            hl_color_bdry=hl_color_bdry,
-            bg_color_pos=bg_color_pos,
-            hl_color_pos=hl_color_pos,
-            axis=1,
+        result = (
+            dataframe.style.set_table_attributes("style='display:inline'")
+            .apply(
+                self.style_categories,
+                limit_i=limit_i,
+                limit_b=limit_b,
+                bg_color_bdry=bg_color_bdry,
+                hl_color_bdry=hl_color_bdry,
+                bg_color_pos=bg_color_pos,
+                hl_color_pos=hl_color_pos,
+                axis=1,
+            )
+            .format(precision=2)
         )
 
         return result
@@ -279,7 +337,10 @@ class BNT:
         target_columns : str, optional
             Target columns for which the histograms and QQ-plot should be displayed.
         """
-        self.yeojohn_normalization()
+        self.calculation_dif()
+        self.calculation_ave()
+        self.add_ave_dataframe()
+        self.yeojohn_normalization(dataframe=self.complete_df)
 
         if target_columns != None:
             target_norm_df = self.normalized_df[target_columns]
@@ -314,10 +375,12 @@ class BNT:
 
                 plt.subplot(1, 4, 1)
                 plt.title("Distribution before Transformation", fontsize=15)
-                sns.histplot(self.dif_df[column], kde=True, color="red")
+                sns.histplot(self.complete_df[column], kde=True, color="red")
 
                 plt.subplot(1, 4, 2)
-                stats.probplot(self.dif_df[column], dist="norm", plot=plt)  # QQ Plot
+                stats.probplot(
+                    self.complete_df[column], dist="norm", plot=plt
+                )  # QQ Plot
                 plt.title("QQ Plot before Transformation", fontsize=15)
 
                 plt.subplot(1, 4, 3)
