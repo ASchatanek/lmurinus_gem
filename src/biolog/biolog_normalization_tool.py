@@ -23,6 +23,7 @@ class BNT:
         self.df = dataframe
 
         self.calculation_dif()
+        self.yeojohn_normalization(self.dif_df)
         self.calculation_ave()
         self.add_ave_dataframe()
 
@@ -89,7 +90,7 @@ class BNT:
         for sample in samples:
             tps = self.ave_df.loc[:, sample].columns.get_level_values(level=0).unique()
             for tp in tps:
-                tp_average = self.dif_df.loc[:, (sample, tp)].mean(axis=1)
+                tp_average = self.normalized_df.loc[:, (sample, tp)].mean(axis=1)
                 self.ave_df[sample, tp] = tp_average
 
         # Sort and round columns of resulting dataframe
@@ -107,7 +108,7 @@ class BNT:
         pd.DataFrame
             Returns a pandas dataframe containing the difference of the values to their blank value along with their average under column "Plate Avg."
         """
-        self.complete_df = self.dif_df.copy()
+        self.complete_df = self.normalized_df.copy()
 
         samples = self.complete_df.columns.get_level_values(level=0).unique()
         for sample in samples:
@@ -155,7 +156,7 @@ class BNT:
 
         return self.normalized_df
 
-    def generate_skewness_data(self, dataframe) -> pd.DataFrame:
+    def generate_skewness_data(self) -> pd.DataFrame:
         """Gathers the skewness value of each dataset (columnwise) before and after normalization using the Yeo-Johnson approach.
 
         Returns
@@ -163,8 +164,7 @@ class BNT:
         pd.DataFrame
             Returns a pandas dataframe containing the skewness information before and after normalization for each defined dataset.
         """
-        self.yeojohn_normalization(dataframe=dataframe)
-        old_skew = self.complete_df.skew()
+        old_skew = self.dif_df.skew()
         new_skew = self.normalized_df.skew()
 
         skew_dict = {"Before Trans.": old_skew, "After Trans.": new_skew}
@@ -204,7 +204,9 @@ class BNT:
                         (target > limit_i) & (target <= limit_b),
                         (target > limit_b),
                     ]
-                    self.id_df[(sample, tp, plate)] = np.select(conditions, tags)
+                    self.id_df[(sample, tp, plate)] = np.select(
+                        conditions, tags, default="NaN"
+                    )
 
         return self.id_df
 
@@ -340,23 +342,21 @@ class BNT:
         self.calculation_dif()
         self.calculation_ave()
         self.add_ave_dataframe()
-        self.yeojohn_normalization(dataframe=self.complete_df)
+        self.yeojohn_normalization(dataframe=self.dif_df)
 
         if target_columns != None:
             target_norm_df = self.normalized_df[target_columns]
-            target_complete_df = self.complete_df[target_columns]
+            target_dif_df = self.dif_df[target_columns]
 
             for column in target_norm_df:
                 plt.figure(figsize=(30, 6))
 
                 plt.subplot(1, 4, 1)
                 plt.title("Distribution before Transformation", fontsize=15)
-                sns.histplot(target_complete_df[column], kde=True, color="red")
+                sns.histplot(target_dif_df[column], kde=True, color="red")
 
                 plt.subplot(1, 4, 2)
-                stats.probplot(
-                    target_complete_df[column], dist="norm", plot=plt
-                )  # QQ Plot
+                stats.probplot(target_dif_df[column], dist="norm", plot=plt)  # QQ Plot
                 plt.title("QQ Plot before Transformation", fontsize=15)
 
                 plt.subplot(1, 4, 3)
@@ -396,3 +396,109 @@ class BNT:
                 plt.title("QQ Plot after Transformation", fontsize=15)
 
                 plt.show()
+
+    def identify_best_boundaries(
+        self, cat_df: pd.DataFrame, target_df: pd.DataFrame
+    ) -> pd.DataFrame:
+
+        # Definition of variables
+        ## Transpose the target df to suitable format
+        cat_trans_df = (
+            cat_df.transpose()
+            .reorder_levels(["Sample #", "TP", "Plate #"], axis=1)
+            .sort_index(axis=1)
+        )
+
+        ## Iteration variable of the available samples
+        df_samples = cat_trans_df.columns.get_level_values(level=0).unique()
+
+        ## Iteration variable of the defined column names
+        col_names = [x for x in cat_trans_df.columns.names]
+
+        ## Dataframe for results
+        results_df = pd.DataFrame(
+            columns=cat_trans_df.columns, index=cat_trans_df.index
+        )
+
+        ## Empty lists
+        idx_list = []
+        res_list = []
+
+        # Process
+
+        ## Iteration of the lower bound
+        for ib in np.arange(0.0, 1.5, 0.1):
+            ib = round(ib.tolist(), 1)
+
+            ## Iteration of the upper bound
+            for bp in np.arange(1.6, 2.5, 0.1):
+
+                bp = round(bp.tolist(), 1)
+
+                ## Create tuple containing the combination of the lower (lb) and upper (ub) bounds
+                idx_list.append((ib, bp))
+
+                ## Run the identification of the assigned category based on newly created bounds
+                self.identify_result_type(dataframe=target_df, limit_i=ib, limit_b=bp)
+
+                ## Reorganized df structure to best suit the function, removed "Plate Avg." from each sample
+                id_tgt_df = self.id_df.loc[
+                    :, (df_samples, slice(None), ["Plate 1", "Plate 2", "Plate 3"])
+                ]
+
+                ## Renaming columns to original names
+                id_tgt_df.columns = id_tgt_df.columns.set_names(col_names)
+
+                ## Run comparison between new, normalized cat. with original cat.
+                comp_df = id_tgt_df.compare(cat_trans_df, keep_shape=True).fillna(0)
+
+                ## Multiindex sorting
+                comp_samples = comp_df.columns.get_level_values(level=0).unique()
+                for sample in comp_samples:
+                    tps = (
+                        comp_df.loc[:, sample]
+                        .columns.get_level_values(level=0)
+                        .unique()
+                    )
+                    for tp in tps:
+                        plates = (
+                            comp_df.loc[:, (sample, tp)]
+                            .columns.get_level_values(level=0)
+                            .unique()
+                        )
+                        for plate in plates:
+                            for idx in comp_df.index:
+
+                                ## Coordinates of solutions in comp. df
+                                loc_self = (sample, tp, plate, "self")
+                                loc_other = (sample, tp, plate, "other")
+
+                                ## Identification of matches for each datapoint categories
+                                results_df.loc[idx, (sample, tp, plate)] = np.where(
+                                    comp_df.loc[idx, loc_self]
+                                    == comp_df.loc[idx, loc_other],
+                                    "YES",  # Matching categories
+                                    "NO",  # No matching categories
+                                )
+
+                ## Iteration counting matches per Sample->TP->Plate and establish accuracy percentage
+                idx_res_list = []
+                for col in results_df.columns:
+                    dp = results_df[col].value_counts()
+                    dp.index = [value.tolist() for value in dp.index.values]
+
+                    result = round((dp["YES"] / len(cat_trans_df)) * 100, 2).item()
+
+                    ## Gather solution percentages
+                    idx_res_list.append(result)
+
+                ## Gather all solutions per boundary combination
+                res_list.append(idx_res_list)
+
+        ## Creation of best solution dataframe
+        best_sol_dict = {idx_list[i]: res_list[i] for i in range(len(idx_list))}
+        best_sol_df = pd.DataFrame.from_dict(
+            best_sol_dict, orient="index", columns=cat_trans_df.columns
+        )
+
+        return best_sol_df

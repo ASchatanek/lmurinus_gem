@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pylab as plt
 
 
-class BAT:
+class BEAT:
     def __init__(self, df):
         self.df = df
 
@@ -173,12 +173,12 @@ class BAT:
                 ## Assign result by filtering for values within the defined bounds
                 result = target[(lb < target) & (target < ub)]
                 ## Calculate filtered values' mean and std. dev.
-                self.stats_df.loc[
-                    ("Average", "Plate Avg."), (sample, tp)
-                ] = result.mean()
-                self.stats_df.loc[
-                    ("Std. Dev.", "Plate Avg."), (sample, tp)
-                ] = result.std()
+                self.stats_df.loc[("Average", "Plate Avg."), (sample, tp)] = (
+                    result.mean()
+                )
+                self.stats_df.loc[("Std. Dev.", "Plate Avg."), (sample, tp)] = (
+                    result.std()
+                )
 
         return self.stats_df
 
@@ -227,13 +227,13 @@ class BAT:
                     limit_indi = target_mean + (target_stdev * 2)
                     limit_bdry = target_mean + (target_stdev * 4)
 
-                    self.stats_df.loc[
-                        ("Limit Indiferent", plate), (sample, tp)
-                    ] = limit_indi
+                    self.stats_df.loc[("Limit Indiferent", plate), (sample, tp)] = (
+                        limit_indi
+                    )
 
-                    self.stats_df.loc[
-                        ("Limit Boundary", plate), (sample, tp)
-                    ] = limit_bdry
+                    self.stats_df.loc[("Limit Boundary", plate), (sample, tp)] = (
+                        limit_bdry
+                    )
 
                     conditions = [
                         (target <= limit_indi),
@@ -258,17 +258,17 @@ class BAT:
         if value == "I":
             return "color : darkgrey"
         elif value == "B":
-            return "color : goldenrod"  # darkred
+            return "color : darkorange"  # darkred
         elif value == "P":
-            return "color : forestgreen"  # darkblue
+            return "color : steelblue"  # darkblue
 
     def add_highlight(self, value):
         if value == "I":
             return "background-color : white"
         elif value == "B":
-            return "background-color : khaki"  # lightcoral
+            return "background-color : bisque"  # lightcoral
         elif value == "P":
-            return "background-color : palegreen"  # lightblue
+            return "background-color : paleturquoise"  # lightblue
 
     def bold_values(self, value):
         if value == "I":
@@ -307,6 +307,41 @@ class BAT:
                 )
                 .format(precision=2)
             )
+
+    def return_categorized_data(self, dataframe: pd.DataFrame, columns: str = ""):
+        if columns == "":
+            result = (
+                dataframe.style.set_table_attributes(
+                    "style='display:inline'; background-color='white'"
+                )
+                .apply(lambda x: self.id_df.applymap(self.add_tags), axis=None)
+                .apply(lambda x: self.id_df.applymap(self.add_highlight), axis=None)
+                .apply(lambda v: self.id_df.applymap(self.bold_values), axis=None)
+                .format(precision=2)
+            )
+
+        else:
+            result = (
+                dataframe.loc[:, columns]
+                .style.set_table_attributes(
+                    "style='display:inline'; background-color='white'"
+                )
+                .apply(
+                    lambda x: self.id_df.loc[:, columns].applymap(self.add_tags),
+                    axis=None,
+                )
+                .apply(
+                    lambda x: self.id_df.loc[:, columns].applymap(self.add_highlight),
+                    axis=None,
+                )
+                .apply(
+                    lambda v: self.id_df.loc[:, columns].applymap(self.bold_values),
+                    axis=None,
+                )
+                .format(precision=2)
+            )
+
+        return result
 
     def apply_style(self, df: pd.DataFrame, tag_df=None, columns=None):
         if tag_df is None:

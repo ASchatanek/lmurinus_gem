@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 
 
 class Model_Exploration_Tool:
-
     """Exploration tool for GEM models. Includes a variety of methods to display reactions, set media components and analyse media contraining effects on the model´s predictions."""
 
     def __init__(self, model: cobra.core.model.Model) -> None:
@@ -206,9 +205,6 @@ class Model_Exploration_Tool:
 
         return self.c_source_prediction_results_df
 
-    # TODO: Continue from here to correctly name variables and actions within remaining functions
-    # TODO: docstring description of each function once finished with optimizing naming
-
     def reduced_uptake_fba_analysis(self, percentage: float = 1.0) -> pd.DataFrame:
         """Method to analyse the effects of contraining the uptake of individual medium components on the model´s predicted secretion and uptake fluxes. An iterative process takes the individual components of the current defined model´s medium. Then, while using the "with" statement, modifies the current uptake bound (neg. lowerbound) by the defined percentage and performs an FBA optimization. Using the "summary()" method, the secreted and uptaked fluxes are retrieved and stored.
 
@@ -302,7 +298,7 @@ class Model_Exploration_Tool:
     def fetch_constrained_medium_fba_fluxes(
         self, percentage: float = 1.0
     ) -> pd.DataFrame:
-        """Gathers medium components´ fluxes resulting of individual component contrained FBA predictions. The constrain is the predicted optimal value modified by a defined percentile value.
+        """Gathers medium components´ fluxes resulting of individual component contrained FBA predictions. The constraint is the predicted optimal value modified by a defined percentile value.
 
         Parameters
         ----------
@@ -377,7 +373,7 @@ class Model_Exploration_Tool:
     def fetch_constrained_sec_and_upt_fluxes(
         self, percentage: float = 1.0
     ) -> pd.DataFrame:
-        """Gathers secretion and uptake fluxes resulting of individual component contrained FBA predictions. The constrain is the predicted optimal value modified by a defined percentile value.
+        """Gathers secretion and uptake fluxes resulting of individual component contrained FBA predictions. The constraint is the predicted optimal value modified by a defined percentile value.
 
         Parameters
         ----------
@@ -386,7 +382,7 @@ class Model_Exploration_Tool:
 
         Returns
         -------
-        pd.DataFrame
+        complete_df : pd.DataFrame
             Returns dataframe containing the predicted secretion and uptake fluxes for each constrained optimization. Unconstrained values added as column "original" as reference.
         """
         # List containing the list of the exchange reaction IDs of the "available" metabolites
@@ -461,7 +457,7 @@ class Model_Exploration_Tool:
             return "Uptake"
 
     def constrained_fba_analysis(self, percentage: float = 1.0) -> pd.DataFrame:
-        """Analysis feches dataframe from method "fetch_constrained_sec_and_upt_fluxes", separates secreted and uptake fluxes and calculates the fractional relationship to the original value.
+        """Analysis fetches dataframe from method "fetch_constrained_sec_and_upt_fluxes", separates secreted and uptake fluxes and calculates the fractional relationship to the original value.
 
         Parameters
         ----------
@@ -504,7 +500,9 @@ class Model_Exploration_Tool:
 
         return sec_results_df, upt_results_df
 
-    def display_hm_constrained_medium_fba_analysis(self, percentage: float = 1.0):
+    def display_hm_constrained_medium_fba_analysis(
+        self, cmap: str = "vlag", percentage: float = 1.0
+    ):
         """Generates resulting secretion and uptake dataframes using method "contrained_fba_analysis" and displayes the information as two separate heatmaps.
 
         Parameters
@@ -523,7 +521,7 @@ class Model_Exploration_Tool:
             annot=outliers,
             annot_kws={"fontsize": 9},
             fmt="",
-            cmap="PRGn",
+            cmap=cmap,
             vmax=2,
             vmin=-2,
         )
@@ -551,7 +549,7 @@ class Model_Exploration_Tool:
         plt.tight_layout()
         plt.show()
 
-        fig, ax = plt.subplots(figsize=(25, 20))
+        fig, ax = plt.subplots(figsize=(25, 7))
         outliers = sec_df.map(lambda v: v if v > 1 or v < -1 else "")
         sec_hm = sns.heatmap(
             data=sec_df,
@@ -560,7 +558,7 @@ class Model_Exploration_Tool:
             annot=outliers,
             annot_kws={"fontsize": 9},
             fmt="",
-            cmap="PRGn",
+            cmap=cmap,
             vmax=2,
             vmin=-2,
         )
