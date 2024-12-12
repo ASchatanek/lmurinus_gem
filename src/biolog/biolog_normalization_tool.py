@@ -201,8 +201,8 @@ class BNT:
 
                     conditions = [
                         (target <= limit_i * std),
-                        (target > limit_i) & (target <= limit_b),
-                        (target > limit_b),
+                        (target > limit_i * std) & (target <= limit_b * std),
+                        (target > limit_b * std),
                     ]
                     self.id_df[(sample, tp, plate)] = np.select(
                         conditions, tags, default="NaN"
@@ -402,23 +402,15 @@ class BNT:
     ) -> pd.DataFrame:
 
         # Definition of variables
-        ## Transpose the target df to suitable format
-        cat_trans_df = (
-            cat_df.transpose()
-            .reorder_levels(["Sample #", "TP", "Plate #"], axis=1)
-            .sort_index(axis=1)
-        )
 
         ## Iteration variable of the available samples
-        df_samples = cat_trans_df.columns.get_level_values(level=0).unique()
+        df_samples = cat_df.columns.get_level_values(level=0).unique()
 
         ## Iteration variable of the defined column names
-        col_names = [x for x in cat_trans_df.columns.names]
+        col_names = [x for x in cat_df.columns.names]
 
         ## Dataframe for results
-        results_df = pd.DataFrame(
-            columns=cat_trans_df.columns, index=cat_trans_df.index
-        )
+        results_df = pd.DataFrame(columns=cat_df.columns, index=cat_df.index)
 
         ## Empty lists
         idx_list = []
@@ -450,7 +442,7 @@ class BNT:
                 id_tgt_df.columns = id_tgt_df.columns.set_names(col_names)
 
                 ## Run comparison between new, normalized cat. with original cat.
-                comp_df = id_tgt_df.compare(cat_trans_df, keep_shape=True).fillna(0)
+                comp_df = id_tgt_df.compare(cat_df, keep_shape=True).fillna(0)
 
                 ## Multiindex sorting
                 comp_samples = comp_df.columns.get_level_values(level=0).unique()
@@ -487,7 +479,7 @@ class BNT:
                     dp = results_df[col].value_counts()
                     dp.index = [value.tolist() for value in dp.index.values]
 
-                    result = round((dp["YES"] / len(cat_trans_df)) * 100, 2).item()
+                    result = round((dp["YES"] / len(cat_df)) * 100, 2).item()
 
                     ## Gather solution percentages
                     idx_res_list.append(result)
@@ -498,7 +490,7 @@ class BNT:
         ## Creation of best solution dataframe
         best_sol_dict = {idx_list[i]: res_list[i] for i in range(len(idx_list))}
         best_sol_df = pd.DataFrame.from_dict(
-            best_sol_dict, orient="index", columns=cat_trans_df.columns
+            best_sol_dict, orient="index", columns=cat_df.columns
         )
 
         return best_sol_df
