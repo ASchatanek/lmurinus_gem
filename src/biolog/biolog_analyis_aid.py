@@ -4,6 +4,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from datetime import datetime
 from pathlib import Path
+from scipy import stats
 
 
 class BAA:
@@ -27,9 +28,7 @@ class BAA:
                 )
 
                 for plate in plates:
-
                     tgt = (sample, tp, plate)
-
                     yield (tgt)
 
     def transform_ids_to_num(
@@ -72,6 +71,7 @@ class BAA:
         self,
         tgt_values_dataframe: pd.DataFrame,
         categorization_dataframe: pd.DataFrame,
+        strain_id_df: pd.DataFrame,
         kde_thresh: float = 0.05,
         kde_levels: int = 10,
         save_figs: bool = False,
@@ -87,17 +87,26 @@ class BAA:
                 "Name of the data dataframe? sample_tp_[input]_categorizationname"
             )
 
+            if data_name == "":
+                save_figs = False
+
+        if save_figs is True:
             id_name = input(
                 "Name of the categorization dataframe? sample_tp_dataname_[input]"
             )
 
+            if id_name == "":
+                save_figs = False
+
         # Iteration
         samples = tgt_cat_df.columns.get_level_values(level=0).unique()
         for sample in samples:
+
+            # Fetch strain name to substitute ID number
+            strain_name = strain_id_df.loc[sample, "Strain"]
+
             tps = tgt_cat_df.loc[:, sample].columns.get_level_values(level=0).unique()
             for tp in tps:
-
-                print((sample, tp))
 
                 tgt_means = tgt_cat_df.loc[:, (sample, tp)].mean(axis=1)
 
@@ -112,13 +121,40 @@ class BAA:
 
                 title = f"Cat. Mean {str(tp)}"
 
+                xy_min = tgt_df.loc[:, (sample, tp)].min().min()
+                xy_max = tgt_df.loc[:, (sample, tp)].max().max()
+
+                range_dif = xy_max - xy_min
+
+                print((sample, tp))
+                print("-----------------")
+                print(
+                    f"min: {float(round(xy_min, 3))}  max: {float(round(xy_max, 3))}  dif: {float(round(range_dif, 3))}"
+                )
+                print("-----------------")
+
+                xy_min = xy_min - (0.2 * xy_max)
+                xy_max = xy_max + (0.2 * xy_max)
+
                 mean_tgt_df[(sample, tp, title)] = res_cats
                 mean_tgt_df = mean_tgt_df.sort_index(axis=1)
 
                 tgt_in_df = mean_tgt_df.loc[:, (sample, tp)]
 
-                # Results are displayed in a pair grid system
+                def plot_regplot(x, y, **kwargs):
 
+                    # Create Regression Line
+                    if kwargs["label"] == 0:
+                        sns.regplot(
+                            data=kwargs["data"],
+                            x=x.name,
+                            y=y.name,
+                            scatter=False,
+                            color=kwargs["color"],
+                            truncate=False,
+                        )
+
+                # Results are displayed in a pair grid system
                 g = sns.PairGrid(
                     data=tgt_in_df,
                     hue=title,
@@ -127,30 +163,41 @@ class BAA:
                     height=4,
                 )
 
+                # Name PairGrids by strain name and timepoint
                 g.figure.suptitle(
-                    f"{sample} on {tp} hrs",
+                    f"{strain_name} at {tp} hrs",
                     y=1.01,
                 )
 
                 # Diagonal Histograms
+                # g.map_diag(
+                #     sns.histplot,
+                #     multiple="stack",
+                #     element="step",
+                #     kde=True,
+                #     bins=20,
+                # )
+
                 g.map_diag(
-                    sns.histplot,
-                    multiple="stack",
-                    element="step",
-                    kde=False,
-                    bins=20,
-                )
-
-                # Lower Scatterplots
-                g.map_lower(sns.scatterplot)
-
-                # Lower KDE Plots
-                g.map_lower(
                     sns.kdeplot,
-                    levels=1,
-                    thresh=0.1,
+                    fill=True,
+                    bw_adjust=2,
                     warn_singular=False,
                 )
+
+                # # Lower KDE Plots
+                # g.map_lower(
+                #     sns.kdeplot,
+                #     levels=1,
+                #     thresh=0.1,
+                #     warn_singular=False,
+                # )
+
+                g.map_lower(
+                    sns.scatterplot,
+                )
+
+                g.map_lower(plot_regplot, color="crimson", data=tgt_in_df)
 
                 # Upper KDE Plots
                 g.map_upper(
@@ -161,19 +208,10 @@ class BAA:
                     warn_singular=False,
                 )
 
-                # Establish a common minimum and maximum
-                for ax in g.axes.flat:
-
-                    if ax != None:
-                        xy_min = tgt_df.loc[:, (sample, tp)].min().min()
-
-                        xy_max = tgt_df.loc[:, (sample, tp)].max().max()
-
-                        xy_min = xy_min - (0.2 * xy_max)
-                        xy_max = xy_max + (0.2 * xy_max)
-
-                        ax.set_xlim([xy_min, xy_max])
-                        ax.set_ylim([xy_min, xy_max])
+                g.set(
+                    ylim=(xy_min, xy_max),
+                    xlim=(xy_min, xy_max),
+                )
 
                 # Edit Legend Properties
                 g.add_legend()
@@ -185,6 +223,36 @@ class BAA:
                 leg_labels = ["Indifferent", "Boundary", "Positive"]
                 for text, label in zip(g._legend.texts, leg_labels):
                     text.set_text(label)
+
+                axs = g.figure.get_axes()
+
+                # Calculate Slope, Intercept, R-Value, P-Value and Standard Error for the regression line
+                for ax in axs:
+
+                    lines = ax.get_lines()
+
+                    for line in lines:
+                        if len(line.get_xydata()) > 0:
+
+                            xd = line.get_xdata()
+                            yd = line.get_ydata()
+
+                            slope, intercept, r, p, sterr = stats.linregress(
+                                x=xd,
+                                y=yd,
+                            )
+
+                            # Add regression equation to plot
+                            if intercept < 0:
+                                formula = f"y = {str(round(slope, 2))}x - {str(round(abs(intercept),2))}"
+                            else:
+                                formula = f"y = {str(round(slope, 2))}x + {str(round(abs(intercept),2))}"
+
+                            ax.text(
+                                x=0.05 * xy_max,
+                                y=0.9 * xy_max,
+                                s=formula,
+                            )
 
                 # Save figure
                 if save_figs is True:
@@ -206,6 +274,7 @@ class BAA:
         self,
         id_df: pd.DataFrame,
         tgt_df: pd.DataFrame,
+        strain_id_df: pd.DataFrame,
         kde_thresh: float = 0.1,
         kde_levels: int = 5,
         save_figs: bool = False,
@@ -216,6 +285,7 @@ class BAA:
         self.compare_values_distribution(
             tgt_values_dataframe=tgt_df,
             categorization_dataframe=trans_id_df,
+            strain_id_df=strain_id_df,
             kde_thresh=kde_thresh,
             kde_levels=kde_levels,
             save_figs=save_figs,

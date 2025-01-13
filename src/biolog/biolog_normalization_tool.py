@@ -221,12 +221,11 @@ class BNT:
         hl_color_pos: str,
         std: float = 1.005249,
     ):
+
         if cell <= limit_i * std:
-            return "background-color: white;color: darkgrey"
-
-        elif cell > limit_i and cell <= limit_b:
+            return "background-color: white; color: darkgrey"
+        elif cell > limit_i * std and cell <= limit_b * std:
             return f"background-color: {bg_color_bdry}; font-weight: bold; color: {hl_color_bdry}"
-
         else:
             return f"background-color: {bg_color_pos}; font-weight: bold; color: {hl_color_pos}"
 
@@ -284,7 +283,7 @@ class BNT:
         self,
         dataframe: pd.DataFrame,
         limit_i: float = 1.0,
-        limit_b: float = 1.8,
+        limit_b: float = 1.5,
         bg_color_bdry: str = "bisque",
         hl_color_bdry: str = "darkorange",
         bg_color_pos: str = "paleturquoise",
@@ -297,9 +296,9 @@ class BNT:
         dataframe : pd.DataFrame
             Target pandas dataframe which should be displayed with the categorization.
         limit_i : float, optional
-            Percentage as a decimal value used to define the "indifferent" category limit. This value represent the percentual amount of the standard deviation (1.0 = 100%). Default is 0.7.
+            Percentage as a decimal value used to define the "indifferent" category limit. This value represent the percentual amount of the standard deviation (1.0 = 100%). Default is 1.0.
         limit_b : int, optional
-            Percentage as a decimal value used to define the "boundary" category limit. This value represent the percentual amount of the standard deviation (1.0 = 100%). Anything within "limit_i" and "limit_b" is considered "boundary". Default is 1.8.
+            Percentage as a decimal value used to define the "boundary" category limit. This value represent the percentual amount of the standard deviation (1.0 = 100%). Anything within "limit_i" and "limit_b" is considered "boundary". Default is 1.5.
         bg_color_bdry : str, optional
             Background color for values categorized as "boundary". Default is "bisque".
         hl_color_bdry : str, optional
