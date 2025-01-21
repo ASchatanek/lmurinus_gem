@@ -88,6 +88,6 @@ target/
 # Mypy cache
 .mypy_cache/
 
-/reports/** */
+/reports/**/
 
 *.png
