@@ -90,5 +90,5 @@ target/
 
 /reports/**/
 /reports/**/*.png
-
+reports/
 *.png
