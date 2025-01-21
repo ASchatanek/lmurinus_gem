@@ -72,8 +72,9 @@ class BAA:
         tgt_values_dataframe: pd.DataFrame,
         categorization_dataframe: pd.DataFrame,
         strain_id_df: pd.DataFrame,
-        kde_thresh: float = 0.05,
-        kde_levels: int = 10,
+        kde_thresh: float = 0.1,
+        kde_levels: int = 5,
+        diag_cut: float = 2,
         save_figs: bool = False,
     ):
 
@@ -81,6 +82,11 @@ class BAA:
         tgt_cat_df = categorization_dataframe
 
         mean_tgt_df = tgt_df.copy()
+
+        strains_tps = []
+        range_mins = []
+        range_maxs = []
+        range_difs = []
 
         if save_figs is True:
             data_name = input(
@@ -97,6 +103,15 @@ class BAA:
 
             if id_name == "":
                 save_figs = False
+
+        data_type = input("What is the data's type?")
+        cat_type = input("What is the categorization type (BIOLOG, BNT, BEAT)")
+
+        norm_data = input("Is the data normalized? (Y, N)")
+        if norm_data == "Y":
+            norm_data = "normalized"
+        else:
+            norm_data = "raw"
 
         # Iteration
         samples = tgt_cat_df.columns.get_level_values(level=0).unique()
@@ -123,15 +138,22 @@ class BAA:
 
                 xy_min = tgt_df.loc[:, (sample, tp)].min().min()
                 xy_max = tgt_df.loc[:, (sample, tp)].max().max()
+                xy_dif = xy_max - xy_min
 
-                range_dif = xy_max - xy_min
+                strain_tp = (sample, tp)
+                xy_min = float(round(xy_min, 3))
+                xy_max = float(round(xy_max, 3))
+                xy_dif = float(round(xy_dif, 3))
 
-                print((sample, tp))
+                print(strain_tp)
                 print("-----------------")
-                print(
-                    f"min: {float(round(xy_min, 3))}  max: {float(round(xy_max, 3))}  dif: {float(round(range_dif, 3))}"
-                )
+                print(f"min: {xy_min}  max: {xy_max}  dif: {xy_dif}")
                 print("-----------------")
+
+                strains_tps.append(strain_tp)
+                range_mins.append(xy_min)
+                range_maxs.append(xy_max)
+                range_difs.append(xy_dif)
 
                 xy_min = xy_min - (0.2 * xy_max)
                 xy_max = xy_max + (0.2 * xy_max)
@@ -165,25 +187,28 @@ class BAA:
 
                 # Name PairGrids by strain name and timepoint
                 g.figure.suptitle(
-                    f"{strain_name} at {tp} hrs",
-                    y=1.01,
+                    f"{strain_name} at {tp} hrs\nData: {data_type} ({norm_data})   Categorization: {cat_type} ",
+                    y=1.02,
+                    fontweight="bold",
                 )
 
                 # Diagonal Histograms
-                # g.map_diag(
-                #     sns.histplot,
-                #     multiple="stack",
-                #     element="step",
-                #     kde=True,
-                #     bins=20,
-                # )
-
                 g.map_diag(
-                    sns.kdeplot,
-                    fill=True,
-                    bw_adjust=2,
-                    warn_singular=False,
+                    sns.histplot,
+                    multiple="stack",
+                    element="step",
+                    kde=False,
+                    bins=25,
                 )
+
+                # # Diagonal KDE
+                # g.map_diag(
+                #     sns.kdeplot,
+                #     fill=True,
+                #     bw_adjust=1,
+                #     warn_singular=False,
+                #     cut=diag_cut,
+                # )
 
                 # # Lower KDE Plots
                 # g.map_lower(
@@ -269,6 +294,17 @@ class BAA:
 
                 plt.show()
 
+        range_dict = {
+            "(Strain, TP)": strains_tps,
+            "Range Min": range_mins,
+            "Range Max": range_maxs,
+            "Range Dif": range_difs,
+        }
+
+        range_df = pd.DataFrame.from_dict(range_dict)
+
+        return range_df
+
     # Function takes both changes the id dataframes to a number system and generates the pair grid distribution anaylsis figures
     def distribution_analysis(
         self,
@@ -277,19 +313,23 @@ class BAA:
         strain_id_df: pd.DataFrame,
         kde_thresh: float = 0.1,
         kde_levels: int = 5,
+        diag_cut: float = 2,
         save_figs: bool = False,
     ):
 
         trans_id_df = self.transform_ids_to_num(id_dataframe=id_df)
 
-        self.compare_values_distribution(
+        range_df = self.compare_values_distribution(
             tgt_values_dataframe=tgt_df,
             categorization_dataframe=trans_id_df,
             strain_id_df=strain_id_df,
             kde_thresh=kde_thresh,
             kde_levels=kde_levels,
+            diag_cut=diag_cut,
             save_figs=save_figs,
         )
+
+        return range_df
 
     # Generate a new folder named by Year_Month_Day if not available, get its path
     def generate_daily_folder(self) -> Path:
