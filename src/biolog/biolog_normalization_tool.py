@@ -178,7 +178,7 @@ class BNT:
         self,
         dataframe: pd.DataFrame,
         limit_i: float = 1.0,
-        limit_b: float = 1.8,
+        limit_b: float = 1.5,
         std: float = 1.005249,
     ) -> pd.DataFrame:
         tags = ["I", "B", "P"]

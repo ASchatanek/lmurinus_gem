@@ -90,22 +90,18 @@ def generate_pair_grid_collage(target_date: str):
         plt.subplot(2, 2, 1)
         plt.imshow(img1)
         plt.axis("off")
-        # plt.title("Image 1")
 
         plt.subplot(2, 2, 2)
         plt.imshow(img2)
         plt.axis("off")
-        # plt.title("Image 2")
 
         plt.subplot(2, 2, 3)
         plt.imshow(img3)
         plt.axis("off")
-        # plt.title("Image 3")
 
         plt.subplot(2, 2, 4)
         plt.imshow(img4)
         plt.axis("off")
-        # plt.title("Image 4")
 
         # * Save Image
         collage_path = os.path.join(collages_path, f"{st_tp_pgs}.png")

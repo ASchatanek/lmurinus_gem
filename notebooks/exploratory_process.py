@@ -6,7 +6,8 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-%matplotlib inline
+
+# %matplotlib inline
 
 pd.set_option("display.max_rows", 500)
 pd.set_option("display.max_columns", 500)
@@ -86,7 +87,7 @@ kwoji_updated = {
     "EX_cpd00393_e0": (-0.01, 1000),
     "EX_cpd00104_e0": (-0.005, 1000),
     "EX_cpd11606_e0": (-0.005, 1000),
-    "EX_cpd00027_e0": (-50, 1000), # glucose
+    "EX_cpd00027_e0": (-50, 1000),  # glucose
 }
 
 #     print(rxn.build_reaction_string(use_metabolite_names=False))
@@ -119,27 +120,27 @@ model.summary()
 # lalista = [["EX_cpd00122_e0"],
 # ["EX_cpd00366_e0"],
 # ["EX_cpd00158_e0"],
-# ["EX_cpd00082_e0"], 
+# ["EX_cpd00082_e0"],
 # ["EX_cpd00751_e0"],
 # ["EX_cpd00108_e0"],
-# ["EX_cpd00280_e0"], 
-# ["EX_cpd00222_e0"], 
-# ["EX_cpd00027_e0"], 
-# ["EX_cpd00100_e0"], 
-# ["EX_cpd00080_e0"], 
-# ["EX_cpd00121_e0"], 
+# ["EX_cpd00280_e0"],
+# ["EX_cpd00222_e0"],
+# ["EX_cpd00027_e0"],
+# ["EX_cpd00100_e0"],
+# ["EX_cpd00080_e0"],
+# ["EX_cpd00121_e0"],
 # ["EX_cpd00208_e0"],
 # ["EX_cpd00179_e0"],
-# ["EX_cpd01262_e0"], 
-# ["EX_cpd00314_e0"], 
-# ["EX_cpd00138_e0"], 
-# ["EX_cpd03198_e0"], 
-# ["EX_cpd01200_e0"], 
-# ["EX_cpd00382_e0"], 
-# ["EX_cpd00396_e0"], 
-# ["EX_cpd01030_e0"], 
+# ["EX_cpd01262_e0"],
+# ["EX_cpd00314_e0"],
+# ["EX_cpd00138_e0"],
+# ["EX_cpd03198_e0"],
+# ["EX_cpd01200_e0"],
+# ["EX_cpd00382_e0"],
+# ["EX_cpd00396_e0"],
+# ["EX_cpd01030_e0"],
 # ["EX_cpd00588_e0"],
-# ["EX_cpd00076_e0"], 
+# ["EX_cpd00076_e0"],
 # ["EX_cpd00794_e0"],
 # ["EX_cpd00029_e0"],
 # ["EX_cpd00047_e0"],
@@ -171,7 +172,7 @@ model.summary()
 
 for rxn in model.reactions:
     print(f"{rxn.id} -> {rxn.name}")
-    
+
 for metabolite in model.metabolites:
     print(f"{metabolite.id} -> {metabolite.name}")
 
@@ -190,20 +191,20 @@ exploration.print_reactions_from_metabolite(target_metabolite_id="cpd00150_c0")
 # exploration.set_media(medium=kwoji_updated, essential=essential, closed=closed_uptake)
 # complete_result = dict()
 # for source in c_sources:
-    
+
 #     with model:
 #         target = model.reactions.get_by_id(source)
 #         target.bounds = (-50, 1000)
-        
+
 #         model.optimize()
 #         result = model.summary().to_frame()
 #         result = result[result["flux"] != 0]
-        
+
 #         print(model.optimize().objective_value)
 #         res_ind = result.index
-        
+
 #         solution = result.loc[:,["flux"]].squeeze().rename(source)
-        
+
 #         complete_result[source] = solution
 
 # final_df = pd.DataFrame(complete_result)
@@ -214,20 +215,20 @@ exploration.print_reactions_from_metabolite(target_metabolite_id="cpd00150_c0")
 # # model.reactions.get_by_id("EX_cpd00076_e0")
 
 # names = dict()
-# for i in nono.index: 
-    
+# for i in nono.index:
+
 #     target = model.reactions.get_by_id(i)
-    
+
 #     for m in target.metabolites:
 #         names[i] = m.name
-        
+
 # nono = nono.rename(index=names)
 
 # co_names = dict()
-# for i in nono.columns: 
-    
+# for i in nono.columns:
+
 #     target = model.reactions.get_by_id(i)
-    
+
 #     for m in target.metabolites:
 #         co_names[i] = m.name
 
