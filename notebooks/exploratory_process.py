@@ -1,5 +1,6 @@
 import set_cwd
-import pandas_settings
+
+# import pandas_settings
 from src import PathOrganizer
 from src import Model_Exploration_Tool as es
 import pandas as pd
@@ -12,10 +13,24 @@ import matplotlib.pyplot as plt
 pd.set_option("display.max_rows", 500)
 pd.set_option("display.max_columns", 500)
 
-lmur_pathorg = PathOrganizer()
-model_dir = lmur_pathorg.get_model_version_path(mo_name="LigilactobacillusMurinus")
-model = lmur_pathorg.load_model(model_dir)
+po = PathOrganizer()
 
+## Lmurinus
+# model_dir = po.get_model_version_path(mo_name="LigilactobacillusMurinus")
+# model = po.load_model(model_dir)
+
+## Pgoldsteinii
+pg_dir = po.get_draft_model_path(draft_name="pgoldsteinii_draft_xml.xml")
+pgold_m = po.load_model(pg_dir)
+
+for met in pgold_m.metabolites:
+
+    print(f"{met.id} -> {met.name}")
+
+pgold_m.metabolites.get_by_id("cpd00218_c0")
+pgold_m.reactions.get_by_id("rxn01647_c0")
+
+# * Media Definition
 closed_uptake = [
     "EX_cpd00007_e0",  # Oxygen
 ]
@@ -108,6 +123,10 @@ kwoji_updated = {
 #                         print("...")
 #                 print("")
 
+# Lmurinus
+model_dir = po.get_model_version_path(mo_name="LigilactobacillusMurinus")
+model = po.load_model(model_dir)
+
 exploration = es(model=model)
 exploration.set_media(medium=kwoji_updated, essential=essential, closed=closed_uptake)
 
@@ -115,7 +134,7 @@ exploration.display_hm_constrained_medium_fba_analysis(percentage=0.5, cmap="Spe
 
 model.summary()
 
-# model.summary()
+model.summary()
 
 # lalista = [["EX_cpd00122_e0"],
 # ["EX_cpd00366_e0"],

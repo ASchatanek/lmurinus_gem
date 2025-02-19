@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from scipy import stats
 
+from IPython.display import display
+
 
 class BAA:
 
@@ -33,39 +35,79 @@ class BAA:
 
     def transform_ids_to_num(
         self,
-        id_dataframe: pd.DataFrame,
+        categories_dataframe: pd.DataFrame,
     ) -> pd.DataFrame:
 
-        id_df = id_dataframe
+        cat_df = categories_dataframe
 
-        ref_id_df = pd.DataFrame(index=id_df.index, columns=id_df.columns)
+        res_cat_df = pd.DataFrame(index=cat_df.index, columns=cat_df.columns)
 
-        samples = id_df.columns.get_level_values(level=0).unique()
+        samples = cat_df.columns.get_level_values(level=0).unique()
         for sample in samples:
-            tps = id_df.loc[:, sample].columns.get_level_values(level=0).unique()
+            tps = cat_df.loc[:, sample].columns.get_level_values(level=0).unique()
             for tp in tps:
                 plates = (
-                    id_df.loc[:, (sample, tp)]
+                    cat_df.loc[:, (sample, tp)]
                     .columns.get_level_values(level=0)
                     .unique()
                 )
 
                 for plate in plates:
 
-                    for idx in id_df.index:
+                    for idx in cat_df.index:
 
                         tgt_loc = (sample, tp, plate)
 
-                        if id_df.loc[idx, tgt_loc] == "I":
-                            ref_id_df.loc[idx, tgt_loc] = 0
-                        elif id_df.loc[idx, tgt_loc] == "B":
-                            ref_id_df.loc[idx, tgt_loc] = 1
-                        elif id_df.loc[idx, tgt_loc] == "P":
-                            ref_id_df.loc[idx, tgt_loc] = 2
+                        if cat_df.loc[idx, tgt_loc] == "I":
+                            res_cat_df.loc[idx, tgt_loc] = 0
+                        elif cat_df.loc[idx, tgt_loc] == "B":
+                            res_cat_df.loc[idx, tgt_loc] = 1
+                        elif cat_df.loc[idx, tgt_loc] == "P":
+                            res_cat_df.loc[idx, tgt_loc] = 2
                         else:
-                            ref_id_df.loc[idx, tgt_loc] == "E"
+                            res_cat_df.loc[idx, tgt_loc] == "E"
 
-        return ref_id_df
+        return res_cat_df
+
+    # * Generate dataframe containing the average category
+    def generate_category_dfs(self, categories_dataframe: pd.DataFrame):
+
+        cat_df = categories_dataframe
+
+        res_ave_cat_df = pd.DataFrame(index=cat_df.index)
+
+        # Iteration
+        samples = cat_df.columns.get_level_values(level=0).unique()
+        for sample in samples:
+
+            tps = cat_df.loc[:, sample].columns.get_level_values(level=0).unique()
+            for tp in tps:
+
+                ## Determine the mean across every sample/timepoint combination
+                tgt_means = cat_df.loc[:, (sample, tp)].mean(axis=1)
+
+                ## Category determined by the mayority, this math only works if there are 3 plates
+                res_cats = []
+                for mean in tgt_means:
+                    if mean < 0.5:
+                        res_cats.append(0)  # 0 is equal to "Indifferent"
+                    elif mean < 1.5:
+                        res_cats.append(1)  # 1 is equal to "Boundary"
+                    else:
+                        res_cats.append(2)  # 2 is equal to "Positive"
+
+                ## Add resulting category to Results Average Categories df
+                res_ave_cat_df[(sample, tp)] = res_cats
+
+                multi_col = pd.MultiIndex.from_tuples(
+                    res_ave_cat_df.columns, names=["Sample", "TP"]
+                )
+
+                res_ave_cat_df.columns = multi_col
+
+                res_ave_cat_df = res_ave_cat_df.sort_index(axis=1)
+
+        return res_ave_cat_df
 
     # * Generate dataframes containing the average category and range stats
     def generate_category_and_range_dfs(
@@ -145,6 +187,21 @@ class BAA:
 
         return mean_cat_df, range_stats_df
 
+    def determine_categories_df(
+        self,
+        categories_dataframe: pd.DataFrame,
+    ):
+
+        trans_cat_df = self.transform_ids_to_num(
+            categories_dataframe=categories_dataframe,
+        )
+
+        res_cat_df = self.generate_category_dfs(
+            categories_dataframe=trans_cat_df,
+        )
+
+        return res_cat_df
+
     def determine_categories_and_range_stats(
         self,
         data_dataframe: pd.DataFrame,
@@ -170,12 +227,11 @@ class BAA:
         diag_cut: float = 2,
         save_figures: bool = False,
     ):
-        # Transform categories to numbers
-        trans_cat_df = self.transform_ids_to_num(categories_dataframe)
 
-        # Generate mean categorization dataframe and range statistics dataframe
-        data_df, range_stats_df = self.generate_category_and_range_dfs(
-            data_dataframe=data_dataframe, categories_dataframe=trans_cat_df
+        # Transform categories to numbers and generate mean_categories_dataframe and range_dataframe
+        data_df, range_stats_df = self.determine_categories_and_range_stats(
+            data_dataframe=data_dataframe,
+            categories_dataframe=categories_dataframe,
         )
 
         # * Series of inputs to name files if saved
@@ -397,22 +453,13 @@ class BAA:
         ## Input for data type
         data_type = input("What is the data's type? (BWA, 535nm, 590nm, etc...)")
 
-        # ## Input for whether the data has been normalized by BNT
-        # norm_data = input("Is the data normalized? (Y, N)")
-        # if norm_data == "Y":
-        #     norm_data = "normalized"
-        # else:
-        #     norm_data = "raw"
-
         ## Input for categorization type
         cat_type = input("What is the categorization type (BIOLOG, BNT, BEAT)")
 
-        # Transform categories to numbers
-        trans_cat_df = self.transform_ids_to_num(categories_dataframe)
-
-        mean_cat_df, range_df = self.generate_category_and_range_dfs(
+        # Transform categories to numbers and generate mean_categories_dataframe and range_dataframe
+        mean_cat_df, range_df = self.determine_categories_and_range_stats(
             data_dataframe=data_dataframe,
-            categories_dataframe=trans_cat_df,
+            categories_dataframe=categories_dataframe,
         )
 
         e_mets_list = self.determine_essential_metabolites(
@@ -597,3 +644,119 @@ class BAA:
 
         # Return folder's path as a Path object
         return date_path
+
+    #
+    def generate_super_report(
+        self,
+        cat_biolog_df: pd.DataFrame,
+        cat_bwa_norm_df: pd.DataFrame,
+        cat_590nm_norm_df: pd.DataFrame,
+        strain_id_df: pd.DataFrame,
+        width: float = 6,
+        height: float = 20,
+    ):
+
+        # Generate Average Categorization for BIOLOG Categorizations
+        ave_cat_biolog_df = self.determine_categories_df(
+            categories_dataframe=cat_biolog_df,
+        )
+
+        # Generate Average Categorization for BWA Normalized Categorizations
+        ave_cat_bwa_df = self.determine_categories_df(
+            categories_dataframe=cat_bwa_norm_df,
+        )
+
+        # Generate Average Categorization for 590nm Normalized Categorizations
+        ave_cat_590nm_df = self.determine_categories_df(
+            categories_dataframe=cat_590nm_norm_df,
+        )
+
+        def assign_color(tgt_list):
+            colors = []
+            for tgt in tgt_list:
+                if tgt == 2:
+                    colors.append("tab:blue")
+                elif tgt == 1:
+                    colors.append("tab:orange")
+                else:
+                    colors.append("w")
+
+            return colors
+
+        def combine_colors(c_biolog, c_bwa, c_590nm):
+
+            n = len(c_biolog)
+            c_comb = []
+
+            for i in range(n):
+                i_c = []
+
+                i_c.append(c_biolog[i])
+                i_c.append(c_bwa[i])
+                i_c.append(c_590nm[i])
+
+                c_comb.append(i_c)
+
+            return c_comb
+
+        # Iteration
+
+        samples = ave_cat_biolog_df.columns.get_level_values(level=0).unique()
+        for sample in samples:
+
+            # summary_df = pd.DataFrame(index=ave_cat_biolog_df.index)
+
+            # Fetch strain name to substitute ID number
+            strain_name = strain_id_df.loc[sample, "Strain"]
+
+            tps = (
+                ave_cat_biolog_df.loc[:, sample]
+                .columns.get_level_values(level=0)
+                .unique()
+            )
+            for tp in tps:
+
+                tgt_biolog = ave_cat_biolog_df.loc[:, (sample, tp)]
+                tgt_bwa = ave_cat_bwa_df.loc[:, (sample, tp)]
+                tgt_590nm = ave_cat_590nm_df.loc[:, (sample, tp)]
+
+                summary_df = pd.DataFrame(index=ave_cat_biolog_df.index)
+                summary_df[("BIOLOG")] = tgt_biolog
+                summary_df[("BWA")] = tgt_bwa
+                summary_df[("590nm")] = tgt_590nm
+
+                summary_df = summary_df.sort_values(
+                    summary_df.columns.tolist(),
+                    ascending=False,
+                )
+
+                colors_biolog = assign_color(summary_df["BIOLOG"])
+                colors_bwa = assign_color(summary_df["BWA"])
+                colors_590nm = assign_color(summary_df["590nm"])
+
+                colors = combine_colors(
+                    c_biolog=colors_biolog,
+                    c_bwa=colors_bwa,
+                    c_590nm=colors_590nm,
+                )
+
+                fig, ax = plt.subplots(figsize=(width, height))
+
+                table1 = ax.table(
+                    cellText=summary_df.values,
+                    cellColours=colors,
+                    rowLabels=summary_df.index,
+                    rowLoc="right",
+                    colLabels=summary_df.columns,
+                    cellLoc="center",
+                    loc="best",
+                )
+
+                table1.auto_set_font_size(False)
+                table1.set_fontsize(12)
+
+                fig.suptitle(f"{strain_name} {tp}")
+                ax.axis("off")
+                fig.tight_layout()
+
+                plt.show()
