@@ -1,4 +1,5 @@
 import set_cwd
+import exploratory_variables as ev
 
 # import pandas_settings
 from src import PathOrganizer
@@ -128,9 +129,16 @@ model_dir = po.get_model_version_path(mo_name="LigilactobacillusMurinus")
 model = po.load_model(model_dir)
 
 exploration = es(model=model)
-exploration.set_media(medium=kwoji_updated, essential=essential, closed=closed_uptake)
+exploration.set_media(
+    medium=ev.kwoji_updated,
+    essential=ev.essential,
+    closed=ev.closed_uptake,
+)
 
-exploration.display_hm_constrained_medium_fba_analysis(percentage=0.5, cmap="Spectral")
+exploration.display_hm_constrained_medium_fba_analysis(
+    percentage=0.5,
+    cmap="Spectral",
+)
 
 model.summary()
 
