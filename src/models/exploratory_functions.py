@@ -3,6 +3,9 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+import re
+
+from cobra import Metabolite
 
 
 class Model_Exploration_Tool:
@@ -39,6 +42,55 @@ class Model_Exploration_Tool:
             )
             print("-" * 40)
 
+    def add_missing_medium_met(
+        self,
+        medium: list or dict,
+    ):
+        med_list = []
+
+        # search for metabolite in c0 compartment
+        if type(medium) == list:
+            med_list = medium
+        elif type(medium) == dict:
+            for mk in medium.keys():
+                med_list.append(mk)
+
+        for ex_rxn in med_list:
+            if ex_rxn in self.model.reactions:
+
+                # print(f"{ex_rxn} is there")
+                pass
+            else:
+                # print(f"{ex_rxn} not in model")
+                met = re.search(r"\Bcpd\d+", ex_rxn).group()
+                met_c0 = f"{met}_c0"
+                met_e0 = f"{met}_e0"
+
+                # This checks for the cytosolic metabolite's equal
+                if met_c0 in self.model.metabolites:
+
+                    # Identify target cytosolic metabolite
+                    tgt_mc0 = self.model.metabolites.get_by_id(met_c0)
+
+                    # Retrieve c0 met name and rename
+                    mc0_name = re.search(r"^(.*?)-", tgt_mc0.name).group(1)
+
+                    me0_name = f"{mc0_name}-e0"
+
+                    # Create extracellular metabolite
+                    metabolite = Metabolite(
+                        id=met_e0,
+                        name=me0_name,
+                        formula=tgt_mc0.formula,
+                        compartment="e0",
+                    )
+
+                    self.model.add_metabolites([metabolite])
+                    self.model.add_boundary(
+                        self.model.metabolites.get_by_id(met_e0),
+                        type="exchange",
+                    )
+
     def set_media(
         self,
         medium: list or dict,
@@ -58,9 +110,9 @@ class Model_Exploration_Tool:
         closed : list, optional
             List of exchange reaction IDs that are set as closed for uptake, meaning their bounds are (0, 1000). Default is None.
         lowerbound : float, optional
-            Float value that define the lowerbound for any exchange reaction that isn´t included in "medium", "essential" and "closed" variables. Default is 0.0.
+            Float value that define the lowerbound for any exchange reaction that isn't included in "medium", "essential" and "closed" variables. Default is 0.0.
         upperbound : float, optional
-            Float value that define the upperbound for any exchange reaction that isn´t included in "medium", "essential" and "closed" variables. Default is 1000.0.
+            Float value that define the upperbound for any exchange reaction that isn't included in "medium", "essential" and "closed" variables. Default is 1000.0.
         """
         for ex_rxn in self.model.exchanges:
             ex_rxn.bounds = (lowerbound, upperbound)
@@ -84,6 +136,149 @@ class Model_Exploration_Tool:
             for med_comp_rxn_id, med_comp_rxn_bounds in medium.items():
                 med_comp_tgt_rxn = self.model.reactions.get_by_id(med_comp_rxn_id)
                 med_comp_tgt_rxn.bounds = med_comp_rxn_bounds
+
+    def add_assay_metabolites(
+        self,
+        mets_df: pd.DataFrame,
+        uptake_bound: float = -50.0,
+        secretion_bound: float = 1000.0,
+    ):
+
+        # List comprehension of relevant information in the metabolites dataframe
+        mets_tpl = [
+            (
+                m[0],
+                m[1],
+                m[2],
+            )
+            for m in zip(
+                mets_df["ModelSeed"],
+                mets_df["Metabolite"],
+                mets_df["Formula"],
+            )
+        ]
+
+        defined_bounds = (uptake_bound, secretion_bound)
+
+        results_dict = dict()
+
+        no_met_res = self.model.optimize().objective_value
+
+        # Iteration through list of metabolites' info tuples
+        for m_info in mets_tpl:
+
+            with self.model:  # * This serves as a "checkpoint" system
+
+                # Establish IDs and Names for both e0 and c0 compartments
+                ## e0 Metabolite
+                e0_met_id = f"{m_info[0]}_e0"  # Adds "_e0" suffix to ModelSeed ID
+                e0_met_exrxn_id = f"EX_{e0_met_id}"  # Adds "EX_" prefix to ex met ID
+                e0_met_name = f"{m_info[1]}-e0"  # Adds "-e0" suffix to met. name
+
+                ## c0 Metabolite
+                c0_met_id = f"{m_info[0]}_c0"  # Adds "_c0" suffix to ModelSeed ID
+                c0_met_name = f"{m_info[1]}-c0"  # Adds "-c0" suffix to met. name
+
+                # e0 met ID exists?
+                if e0_met_id in self.model.metabolites:
+                    # YES
+                    tgt_e0_met = self.model.metabolites.get_by_id(
+                        e0_met_id
+                    )  ## Identify target e0 metabolite
+                    ## e0 met exchange reaction exists?
+                    if e0_met_exrxn_id in self.model.reactions:
+                        # YES
+                        tgt_e0_rxn = self.model.reactions.get_by_id(
+                            e0_met_exrxn_id
+                        )  ## Identify target e0 ex. rxn
+                        tgt_e0_rxn.bounds = defined_bounds  ## Set defined bounds
+                    else:
+                        # NO
+                        self.model.add_boundary(
+                            tgt_e0_met, type="exchange"
+                        )  ## Create exchange reaction for target e0 metabolite
+                        tgt_e0_rxn = self.model.reactions.get_by_id(
+                            e0_met_exrxn_id
+                        )  ## Identify newly created target e0 ex. rxn
+                        tgt_e0_rxn.bounds = defined_bounds  ## Set defined bounds
+                else:
+                    # NO
+                    ## c0 met ID exists?
+                    if c0_met_id in self.model.metabolites:
+                        # YES
+                        tgt_c0_met = self.model.metabolites.get_by_id(
+                            c0_met_id
+                        )  ## Identify target c0 metabolite
+                        ## Determine new e0 metabolite name
+                        e0_met_name = re.search(r"^(.*?)-[cpe]0", tgt_c0_met.name)
+                        if e0_met_name == None:
+                            e0_met_name = f"{tgt_c0_met.name}-e0"
+                        else:
+                            e0_met_name = f"{e0_met_name.group(1)}-e0"
+
+                        ## Create e0 metabolite using c0 metabolite info
+                        self.model.add_metabolites(
+                            [
+                                Metabolite(
+                                    id=e0_met_id,
+                                    formula=tgt_c0_met.formula,
+                                    name=e0_met_name,
+                                    compartment="e0",
+                                )
+                            ]
+                        )
+
+                        tgt_e0_met = self.model.metabolites.get_by_id(
+                            e0_met_id
+                        )  ## Identify new target e0 metabolite
+
+                        self.model.add_boundary(
+                            tgt_e0_met, type="exchange"
+                        )  ## Create exchange reaction for tarrget e0 metabolite
+
+                        tgt_e0_rxn = self.model.reactions.get_by_id(
+                            e0_met_exrxn_id
+                        )  ## Identify target exchange reaction
+
+                        tgt_e0_rxn.bounds = defined_bounds  ## Set defined bounds
+
+                    else:
+                        # NO
+                        self.model.add_metabolites(
+                            [
+                                Metabolite(
+                                    id=e0_met_id,
+                                    formula=m_info[2],
+                                    name=e0_met_name,
+                                    compartment="e0",
+                                )
+                            ]
+                        )
+
+                        tgt_e0_met = self.model.metabolites.get_by_id(
+                            e0_met_id
+                        )  ## Identify new target e0 metabolite
+
+                        self.model.add_boundary(
+                            tgt_e0_met, type="exchange"
+                        )  ## Create exchange reaction for tarrget e0 metabolite
+
+                        tgt_e0_rxn.bounds = defined_bounds  ## Set defined bounds
+
+                result = self.model.optimize().objective_value
+                result = round(
+                    number=result - no_met_res,
+                    ndigits=3,
+                )
+                results_dict[m_info[1]] = result
+
+                results_df = pd.DataFrame.from_dict(
+                    data=results_dict,
+                    orient="index",
+                    columns=[self.model.id],
+                )
+
+        return results_df
 
     #! FVA only works if this the analysis is done on a jupyter notebook file
     def gather_media_fluxes(self, fva_fraction: float = None) -> pd.DataFrame:

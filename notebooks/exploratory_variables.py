@@ -1,4 +1,16 @@
 import set_cwd
+from src import Reader
+import pandas as pd
+
+
+pd.set_option("display.max_rows", 500)
+pd.set_option("display.max_columns", 500)
+
+biolog_met_df = Reader().find_dataframe(
+    file_name="Metabolites Listing.xlsx", sheet_name="BIOLOG"
+)
+
+biolog_met_df = biolog_met_df.loc[:, ("Metabolite", "ModelSeed", "Formula")]
 
 # * Media Definition
 
@@ -9,6 +21,9 @@ closed_uptake = [
 
 essential = [
     "EX_cpd10516_e0",  # fe3
+    "EX_cpd00264_e0",  # spermidine
+    "EX_cpd00232_e0",  # Neu5Ac
+    # "EX_cpd00246_e0",  # Inosine
 ]
 
 c_sources = [
@@ -74,5 +89,27 @@ kwoji_updated = {
     "EX_cpd00393_e0": (-0.01, 1000),
     "EX_cpd00104_e0": (-0.005, 1000),
     "EX_cpd11606_e0": (-0.005, 1000),
-    "EX_cpd00027_e0": (-50, 1000),  # glucose
+    # "EX_cpd00076_e0": (-0.02, 1000),  # sucrose
 }
+
+draftModels = [
+    "amuniciphila_draft_xml.xml",
+    "amucosicola_draft_xml.xml",
+    "bcaecimuris_draft_xml.xml",
+    "bpseudococoides_draft_xml.xml",
+    "cinnocuum_draft_xml.xml",
+    "cramosum_draft_xml.xml",
+    "eclostridioformis_draft_xml.xml",
+    "efaecalis_draft_xml.xml",
+    "ecoli_draft_xml.xml",
+    "emuris_draft_xml.xml",
+    "fplautii_draft_xml.xml",
+    "fbutyricus_draft_xml.xml",
+    "lreuteri_draft_xml.xml",
+    "lmurinus_draft_xml.xml",
+    "mschaedleri_draft_xml.xml",
+    "mintestinale_draft_xml.xml",
+    "pgoldsteinii_draft_xml.xml",
+    "tmuris_draft_xml.xml",
+    "xrodentium_draft_xml.xml",
+]
