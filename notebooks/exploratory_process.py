@@ -23,22 +23,43 @@ po = PathOrganizer()
 
 test = EA()
 
-test.metabolite_assay(
+gotit = test.metabolite_assay(
     target_models=ev.draftModels,
     medium=ev.kwoji_updated,
     closed=ev.closed_uptake,
     essential=ev.essential,
     metabolites=ev.biolog_met_df,
+    medium_df=ev.kwoji_met_df,
 )
 
-###############################
+gotit
 
+gotit.to_excel("metabolic_assay_results.xlsx")
+
+###############################
+am_dir = po.get_draft_model_path(draft_name="amuciniphila_draft_xml.xml")
+am_m = po.load_model(am_dir)
+
+am_m.reactions.get_by_id("EX_cpd00264_e0")
+am_m.metabolites.get_by_id("cpd00264_e0")
+
+for m in am_m.metabolites:
+
+    print(m.id)
+
+###############################
 ## LMurinus
 lm_dir = po.get_draft_model_path(draft_name="lmurinus_draft_xml.xml")
 lm_m = po.load_model(lm_dir)
 ex_lm = es(model=lm_m)
 
+lm_m
+
 ex_lm.add_missing_medium_met(medium=ev.kwoji_updated)
+
+for m in lm_m.metabolites:
+
+    print(m)
 
 ex_lm.set_media(
     medium=ev.kwoji_updated,
@@ -46,14 +67,11 @@ ex_lm.set_media(
     closed=ev.closed_uptake,
 )
 
-lm_m.summary()
-
-lm_m.metabolites.get_by_id("cpd00246_e0")
-
 r_lm = ex_lm.add_assay_metabolites(mets_df=ev.biolog_met_df)
 
 r_lm
 
+###############################
 ## Pgoldsteinii
 pg_dir = po.get_draft_model_path(draft_name="pgoldsteinii_draft_xml.xml")
 pgold_m = po.load_model(pg_dir)
@@ -71,7 +89,7 @@ results = ex_pgold.add_assay_metabolites(mets_df=ev.biolog_met_df)
 
 results
 
-###############
+###############################
 
 test = EA()
 

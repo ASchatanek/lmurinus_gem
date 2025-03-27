@@ -1,4 +1,3 @@
-import set_cwd
 from src import Reader
 import pandas as pd
 
@@ -6,11 +5,31 @@ import pandas as pd
 pd.set_option("display.max_rows", 500)
 pd.set_option("display.max_columns", 500)
 
+##############
+
 biolog_met_df = Reader().find_dataframe(
-    file_name="Metabolites Listing.xlsx", sheet_name="BIOLOG"
+    file_name="Metabolites Listing.xlsx",
+    sheet_name="BIOLOG",
 )
 
-biolog_met_df = biolog_met_df.loc[:, ("Metabolite", "ModelSeed", "Formula")]
+biolog_met_df = biolog_met_df.loc[
+    :,
+    ("Metabolite", "ModelSeed", "Formula"),
+]
+
+##############
+
+kwoji_met_df = Reader().find_dataframe(
+    file_name="Metabolites Listing.xlsx",
+    sheet_name="KWOJI",
+)
+
+kwoji_met_df = kwoji_met_df.loc[
+    :,
+    ("Metabolite", "ModelSeed", "Formula"),
+]
+
+##############
 
 # * Media Definition
 
@@ -21,7 +40,7 @@ closed_uptake = [
 
 essential = [
     "EX_cpd10516_e0",  # fe3
-    "EX_cpd00264_e0",  # spermidine
+    # "EX_cpd00264_e0",  # spermidine
     "EX_cpd00232_e0",  # Neu5Ac
     # "EX_cpd00246_e0",  # Inosine
 ]
@@ -93,10 +112,10 @@ kwoji_updated = {
 }
 
 draftModels = [
-    "amuniciphila_draft_xml.xml",
+    "amuciniphila_draft_xml.xml",
     "amucosicola_draft_xml.xml",
     "bcaecimuris_draft_xml.xml",
-    "bpseudococoides_draft_xml.xml",
+    "bpseudococcoides_draft_xml.xml",
     "cinnocuum_draft_xml.xml",
     "cramosum_draft_xml.xml",
     "eclostridioformis_draft_xml.xml",

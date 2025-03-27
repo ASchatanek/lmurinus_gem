@@ -44,10 +44,11 @@ class Model_Exploration_Tool:
 
     def add_missing_medium_met(
         self,
-        medium: list or dict,
+        medium=list or dict,
+        medium_df=pd.DataFrame,
     ):
-        med_list = []
 
+        med_list = []
         # search for metabolite in c0 compartment
         if type(medium) == list:
             med_list = medium
@@ -57,11 +58,8 @@ class Model_Exploration_Tool:
 
         for ex_rxn in med_list:
             if ex_rxn in self.model.reactions:
-
-                # print(f"{ex_rxn} is there")
                 pass
             else:
-                # print(f"{ex_rxn} not in model")
                 met = re.search(r"\Bcpd\d+", ex_rxn).group()
                 met_c0 = f"{met}_c0"
                 met_e0 = f"{met}_e0"
@@ -73,11 +71,11 @@ class Model_Exploration_Tool:
                     tgt_mc0 = self.model.metabolites.get_by_id(met_c0)
 
                     # Retrieve c0 met name and rename
-                    mc0_name = re.search(r"^(.*?)-", tgt_mc0.name).group(1)
+                    mc0_name = re.search(r"^(.*?)(-*)", tgt_mc0.name).group(1)
 
                     me0_name = f"{mc0_name}-e0"
 
-                    # Create extracellular metabolite
+                    # Create extracellular Metabolite
                     metabolite = Metabolite(
                         id=met_e0,
                         name=me0_name,
@@ -85,6 +83,35 @@ class Model_Exploration_Tool:
                         compartment="e0",
                     )
 
+                    self.model.add_metabolites([metabolite])
+                    self.model.add_boundary(
+                        self.model.metabolites.get_by_id(met_e0),
+                        type="exchange",
+                    )
+
+                else:
+                    # Define metabolite name
+                    met_name = medium_df.loc[
+                        medium_df["ModelSeed"] == met_e0,
+                        "Metabolite",
+                    ].values[0]
+                    met_name = f"{met_name}-e0"
+
+                    # Define metabolite formula
+                    met_formula = medium_df.loc[
+                        medium_df["ModelSeed"] == met_e0,
+                        "Formula",
+                    ]
+
+                    # Create extracellular metabolite
+                    metabolite = Metabolite(
+                        id=met_e0,
+                        name=met_name,
+                        formula=met_formula,
+                        compartment="e0",
+                    )
+
+                    # Create exchange reaction
                     self.model.add_metabolites([metabolite])
                     self.model.add_boundary(
                         self.model.metabolites.get_by_id(met_e0),
@@ -119,8 +146,9 @@ class Model_Exploration_Tool:
 
         if type(essential) == list:
             for es_rxn_id in essential:
-                es_tgt_rxn = self.model.reactions.get_by_id(es_rxn_id)
-                es_tgt_rxn.bounds = (-1000, 1000)
+                if es_rxn_id in self.model.reactions:
+                    es_tgt_rxn = self.model.reactions.get_by_id(es_rxn_id)
+                    es_tgt_rxn.bounds = (-1000, 1000)
 
         if type(closed) == list:
             for cl_rxn_id in closed:
@@ -272,10 +300,13 @@ class Model_Exploration_Tool:
                 )
                 results_dict[m_info[1]] = result
 
+                # Generate Name for Strain
+                dsmz = re.search(r"^(.*)_([DSM]+.*)", self.model.id).group(2)
+
                 results_df = pd.DataFrame.from_dict(
                     data=results_dict,
                     orient="index",
-                    columns=[self.model.id],
+                    columns=[dsmz],
                 )
 
         return results_df

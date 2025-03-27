@@ -645,15 +645,17 @@ class BAA:
         # Return folder's path as a Path object
         return date_path
 
-    #
+    # * GENERATE SUPER REPORT
     def generate_super_report(
         self,
         cat_biolog_df: pd.DataFrame,
         cat_bwa_norm_df: pd.DataFrame,
         cat_590nm_norm_df: pd.DataFrame,
         strain_id_df: pd.DataFrame,
+        met_assay_df: pd.DataFrame,
         width: float = 6,
         height: float = 20,
+        save_figures: bool = False,
     ):
 
         # Generate Average Categorization for BIOLOG Categorizations
@@ -683,7 +685,24 @@ class BAA:
 
             return colors
 
-        def combine_colors(c_biolog, c_bwa, c_590nm):
+        def assign_met_assay_color(tgt_list):
+            colors = []
+            for tgt in tgt_list:
+                if tgt >= 0.2:
+                    colors.append("tab:blue")
+                elif tgt < 0.2 and tgt >= 0.1:
+                    colors.append("tab:orange")
+                else:
+                    colors.append("w")
+
+            return colors
+
+        def combine_colors(
+            c_biolog,
+            c_bwa,
+            c_590nm,
+            c_fba,
+        ):
 
             n = len(c_biolog)
             c_comb = []
@@ -694,6 +713,7 @@ class BAA:
                 i_c.append(c_biolog[i])
                 i_c.append(c_bwa[i])
                 i_c.append(c_590nm[i])
+                i_c.append(c_fba[i])
 
                 c_comb.append(i_c)
 
@@ -708,6 +728,9 @@ class BAA:
 
             # Fetch strain name to substitute ID number
             strain_name = strain_id_df.loc[sample, "Strain"]
+            strain_dsmz = strain_id_df.loc[sample, "DSMZ-number"]
+
+            tgt_mAssay = met_assay_df.loc[:, strain_dsmz]
 
             tps = (
                 ave_cat_biolog_df.loc[:, sample]
@@ -724,6 +747,7 @@ class BAA:
                 summary_df[("BIOLOG")] = tgt_biolog
                 summary_df[("BWA")] = tgt_bwa
                 summary_df[("590nm")] = tgt_590nm
+                summary_df[("FBA")] = tgt_mAssay
 
                 summary_df = summary_df.sort_values(
                     summary_df.columns.tolist(),
@@ -733,11 +757,13 @@ class BAA:
                 colors_biolog = assign_color(summary_df["BIOLOG"])
                 colors_bwa = assign_color(summary_df["BWA"])
                 colors_590nm = assign_color(summary_df["590nm"])
+                colors_fba = assign_met_assay_color(summary_df["FBA"])
 
                 colors = combine_colors(
                     c_biolog=colors_biolog,
                     c_bwa=colors_bwa,
                     c_590nm=colors_590nm,
+                    c_fba=colors_fba,
                 )
 
                 fig, ax = plt.subplots(figsize=(width, height))
@@ -758,5 +784,16 @@ class BAA:
                 fig.suptitle(f"{strain_name} {tp}")
                 ax.axis("off")
                 fig.tight_layout()
+
+                # Save figure
+                if save_figures is True:
+
+                    fig_name = f"{str(sample)}_{str(tp)}_sumtable.png"
+
+                    today_data_fdr = self.generate_daily_folder()
+                    fig_path = today_data_fdr / fig_name
+                    fig_path.resolve()
+
+                    fig.savefig(fig_path)
 
                 plt.show()

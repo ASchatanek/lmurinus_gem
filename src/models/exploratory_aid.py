@@ -40,6 +40,7 @@ class ExploratoryAid:
         self,
         target_models: list,
         medium: list or dict,
+        medium_df: pd.DataFrame,
         closed: list,
         essential: list,
         metabolites: list,
@@ -57,6 +58,7 @@ class ExploratoryAid:
 
             model.add_missing_medium_met(
                 medium=medium,
+                medium_df=medium_df,
             )
 
             model.set_media(
