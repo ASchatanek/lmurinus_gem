@@ -1,2 +1,2 @@
-from .biolog_variables import *
-from .exploratory_variables import *
+from notebooks.biolog_variables import *
+from notebooks.exploratory_variables import *

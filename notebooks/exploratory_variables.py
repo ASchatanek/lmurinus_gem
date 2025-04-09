@@ -40,9 +40,15 @@ closed_uptake = [
 
 essential = [
     "EX_cpd10516_e0",  # fe3
-    # "EX_cpd00264_e0",  # spermidine
+    "EX_cpd00264_e0",  # spermidine
     "EX_cpd00232_e0",  # Neu5Ac
-    # "EX_cpd00246_e0",  # Inosine
+    "EX_cpd00246_e0",  # Inosine
+    "EX_cpd00242_e0",  # Carbonate
+    "EX_cpd00076_e0",  # * Sucrose
+    "EX_cpd00108_e0",  # * Galactose
+    "EX_cpd00122_e0",  # N-Acetyl-D-glucosamine
+    "EX_cpd00215_e0",  # Pyridoxal
+    "EX_cpd00020_e0",  # Pyruvate
 ]
 
 c_sources = [
@@ -108,7 +114,6 @@ kwoji_updated = {
     "EX_cpd00393_e0": (-0.01, 1000),
     "EX_cpd00104_e0": (-0.005, 1000),
     "EX_cpd11606_e0": (-0.005, 1000),
-    # "EX_cpd00076_e0": (-0.02, 1000),  # sucrose
 }
 
 draftModels = [
@@ -131,4 +136,15 @@ draftModels = [
     "pgoldsteinii_draft_xml.xml",
     "tmuris_draft_xml.xml",
     "xrodentium_draft_xml.xml",
+]
+
+problematicModels = [
+    "amuciniphila_draft_xml.xml",
+    "amucosicola_draft_xml.xml",
+    "bcaecimuris_draft_xml.xml",
+    "bpseudococcoides_draft_xml.xml",
+    "cinnocuum_draft_xml.xml",
+    "cramosum_draft_xml.xml",
+    "eclostridioformis_draft_xml.xml",
+    "efaecalis_draft_xml.xml",
 ]

@@ -148,7 +148,7 @@ class Model_Exploration_Tool:
             for es_rxn_id in essential:
                 if es_rxn_id in self.model.reactions:
                     es_tgt_rxn = self.model.reactions.get_by_id(es_rxn_id)
-                    es_tgt_rxn.bounds = (-1000, 1000)
+                    es_tgt_rxn.bounds = (-1, 1000)
 
         if type(closed) == list:
             for cl_rxn_id in closed:
@@ -310,6 +310,26 @@ class Model_Exploration_Tool:
                 )
 
         return results_df
+
+    # * Function just to call both media functions
+    def add_and_set_media(
+        self,
+        medium,
+        closed_m,
+        essential_m,
+        medium_df,
+    ):
+
+        self.add_missing_medium_met(
+            medium=medium,
+            medium_df=medium_df,
+        )
+
+        self.set_media(
+            medium=medium,
+            closed=closed_m,
+            essential=essential_m,
+        )
 
     #! FVA only works if this the analysis is done on a jupyter notebook file
     def gather_media_fluxes(self, fva_fraction: float = None) -> pd.DataFrame:

@@ -47,8 +47,10 @@ baa_test.generate_super_report(
     cat_590nm_norm_df=bv.bnt_590.id_df,
     strain_id_df=bv.strain_ids,
     met_assay_df=gotit,
-    save_figures=True,
+    save_figures=False,
 )
+
+##########################
 
 ## BWA, BIOLOG
 baa_test.generate_summary_report(

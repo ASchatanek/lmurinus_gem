@@ -33,41 +33,55 @@ class BAA:
                     tgt = (sample, tp, plate)
                     yield (tgt)
 
-    def transform_ids_to_num(
+    def transform_ids_to_numbers(
         self,
-        categories_dataframe: pd.DataFrame,
+        categoriesDataframe: pd.DataFrame,
     ) -> pd.DataFrame:
 
-        cat_df = categories_dataframe
+        intergerDataframe = pd.DataFrame(
+            index=categoriesDataframe.index,
+            columns=categoriesDataframe.columns,
+        )
 
-        res_cat_df = pd.DataFrame(index=cat_df.index, columns=cat_df.columns)
-
-        samples = cat_df.columns.get_level_values(level=0).unique()
-        for sample in samples:
-            tps = cat_df.loc[:, sample].columns.get_level_values(level=0).unique()
-            for tp in tps:
-                plates = (
-                    cat_df.loc[:, (sample, tp)]
+        cellStrains = categoriesDataframe.columns.get_level_values(level=0).unique()
+        for strain in cellStrains:
+            strainTimepoints = (
+                categoriesDataframe.loc[:, strain]
+                .columns.get_level_values(level=0)
+                .unique()
+            )
+            for timepoint in strainTimepoints:
+                timepointPlates = (
+                    categoriesDataframe.loc[:, (strain, timepoint)]
                     .columns.get_level_values(level=0)
                     .unique()
                 )
 
-                for plate in plates:
+                for plate in timepointPlates:
 
-                    for idx in cat_df.index:
+                    for metabolite in categoriesDataframe.index:
 
-                        tgt_loc = (sample, tp, plate)
+                        targetCombination = (strain, timepoint, plate)
 
-                        if cat_df.loc[idx, tgt_loc] == "I":
-                            res_cat_df.loc[idx, tgt_loc] = 0
-                        elif cat_df.loc[idx, tgt_loc] == "B":
-                            res_cat_df.loc[idx, tgt_loc] = 1
-                        elif cat_df.loc[idx, tgt_loc] == "P":
-                            res_cat_df.loc[idx, tgt_loc] = 2
+                        if (
+                            categoriesDataframe.loc[metabolite, targetCombination]
+                            == "I"
+                        ):
+                            intergerDataframe.loc[metabolite, targetCombination] = 0
+                        elif (
+                            categoriesDataframe.loc[metabolite, targetCombination]
+                            == "B"
+                        ):
+                            intergerDataframe.loc[metabolite, targetCombination] = 1
+                        elif (
+                            categoriesDataframe.loc[metabolite, targetCombination]
+                            == "P"
+                        ):
+                            intergerDataframe.loc[metabolite, targetCombination] = 2
                         else:
-                            res_cat_df.loc[idx, tgt_loc] == "E"
+                            intergerDataframe.loc[metabolite, targetCombination] == "E"
 
-        return res_cat_df
+        return intergerDataframe
 
     # * Generate dataframe containing the average category
     def generate_category_dfs(self, categories_dataframe: pd.DataFrame):
@@ -192,8 +206,8 @@ class BAA:
         categories_dataframe: pd.DataFrame,
     ):
 
-        trans_cat_df = self.transform_ids_to_num(
-            categories_dataframe=categories_dataframe,
+        trans_cat_df = self.transform_ids_to_numbers(
+            categoriesDataframe=categories_dataframe,
         )
 
         res_cat_df = self.generate_category_dfs(
@@ -208,7 +222,9 @@ class BAA:
         categories_dataframe: pd.DataFrame,
     ):
 
-        trans_cat_df = self.transform_ids_to_num(categories_dataframe)
+        trans_cat_df = self.transform_ids_to_numbers(
+            categoriesDataframe=categories_dataframe,
+        )
 
         res_mean_cat_df, res_rng_stats_df = self.generate_category_and_range_dfs(
             data_dataframe=data_dataframe,
@@ -645,135 +661,150 @@ class BAA:
         # Return folder's path as a Path object
         return date_path
 
-    # * GENERATE SUPER REPORT
+    #################################### * GENERATE SUPER REPORT
     def generate_super_report(
         self,
-        cat_biolog_df: pd.DataFrame,
-        cat_bwa_norm_df: pd.DataFrame,
-        cat_590nm_norm_df: pd.DataFrame,
-        strain_id_df: pd.DataFrame,
-        met_assay_df: pd.DataFrame,
-        width: float = 6,
-        height: float = 20,
-        save_figures: bool = False,
+        categoriesDataframe_BIOLOG: pd.DataFrame,
+        categoriesDataframe_BWA: pd.DataFrame,
+        categoriesDataframe_590nm: pd.DataFrame,
+        strainInfoDataframe: pd.DataFrame,
+        metabolicAssayDataframe: pd.DataFrame,
+        figureWidth: float = 6,
+        figureHeight: float = 20,
+        saveFigures: bool = False,
     ):
 
         # Generate Average Categorization for BIOLOG Categorizations
-        ave_cat_biolog_df = self.determine_categories_df(
-            categories_dataframe=cat_biolog_df,
+        avg_CategoriesDataframe_BIOLOG = self.determine_categories_df(
+            categories_dataframe=categoriesDataframe_BIOLOG,
         )
 
         # Generate Average Categorization for BWA Normalized Categorizations
-        ave_cat_bwa_df = self.determine_categories_df(
-            categories_dataframe=cat_bwa_norm_df,
+        avg_CategoriesDataframe_BWA = self.determine_categories_df(
+            categories_dataframe=categoriesDataframe_BWA,
         )
 
         # Generate Average Categorization for 590nm Normalized Categorizations
-        ave_cat_590nm_df = self.determine_categories_df(
-            categories_dataframe=cat_590nm_norm_df,
+        avg_CategoriesDataframe_590nm = self.determine_categories_df(
+            categories_dataframe=categoriesDataframe_590nm,
         )
 
-        def assign_color(tgt_list):
-            colors = []
-            for tgt in tgt_list:
-                if tgt == 2:
-                    colors.append("tab:blue")
-                elif tgt == 1:
-                    colors.append("tab:orange")
+        def assign_colors_to_categories(categoriesList):
+            categoriesColors = []
+            for category in categoriesList:
+                if category == 2:
+                    categoriesColors.append("tab:blue")
+                elif category == 1:
+                    categoriesColors.append("tab:orange")
                 else:
-                    colors.append("w")
+                    categoriesColors.append("w")
 
-            return colors
+            return categoriesColors
 
-        def assign_met_assay_color(tgt_list):
-            colors = []
-            for tgt in tgt_list:
-                if tgt >= 0.2:
-                    colors.append("tab:blue")
-                elif tgt < 0.2 and tgt >= 0.1:
-                    colors.append("tab:orange")
+        def assign_colors_to_metAssayData(metabolicAssayData):
+            metAssayDataColors = []
+            for category in metabolicAssayData:
+                if category >= 0.1:
+                    metAssayDataColors.append("tab:blue")
+                elif category < 0.1 and category >= 0.01:
+                    metAssayDataColors.append("tab:orange")
                 else:
-                    colors.append("w")
+                    metAssayDataColors.append("w")
 
-            return colors
+            return metAssayDataColors
 
-        def combine_colors(
-            c_biolog,
-            c_bwa,
-            c_590nm,
-            c_fba,
+        def arrange_colors_indexwise(
+            colorsBIOLOG,
+            colorsBWA,
+            colors590nm,
+            colorsMetAssay,
         ):
 
-            n = len(c_biolog)
-            c_comb = []
+            n = len(colorsBIOLOG)
+            colorsLists_indexwise = []
 
             for i in range(n):
-                i_c = []
+                colorsList = []
 
-                i_c.append(c_biolog[i])
-                i_c.append(c_bwa[i])
-                i_c.append(c_590nm[i])
-                i_c.append(c_fba[i])
+                colorsList.append(colorsBIOLOG[i])
+                colorsList.append(colorsBWA[i])
+                colorsList.append(colors590nm[i])
+                colorsList.append(colorsMetAssay[i])
 
-                c_comb.append(i_c)
+                colorsLists_indexwise.append(colorsList)
 
-            return c_comb
+            return colorsLists_indexwise
+
+        def assign_and_arrange_colors_to_summaryDataframe():
+
+            colorsBIOLOG = assign_colors_to_categories(summaryDataframe["BIOLOG"])
+            colorsBWA = assign_colors_to_categories(summaryDataframe["BWA"])
+            colors590nm = assign_colors_to_categories(summaryDataframe["590nm"])
+            colorsMetAssay = assign_colors_to_metAssayData(summaryDataframe["FBA"])
+
+            colors = arrange_colors_indexwise(
+                colorsBIOLOG=colorsBIOLOG,
+                colorsBWA=colorsBWA,
+                colors590nm=colors590nm,
+                colorsMetAssay=colorsMetAssay,
+            )
+
+            return colors
 
         # Iteration
 
-        samples = ave_cat_biolog_df.columns.get_level_values(level=0).unique()
-        for sample in samples:
-
-            # summary_df = pd.DataFrame(index=ave_cat_biolog_df.index)
+        cellStrains = avg_CategoriesDataframe_BIOLOG.columns.get_level_values(
+            level=0
+        ).unique()
+        for strain in cellStrains:
 
             # Fetch strain name to substitute ID number
-            strain_name = strain_id_df.loc[sample, "Strain"]
-            strain_dsmz = strain_id_df.loc[sample, "DSMZ-number"]
+            strainName = strainInfoDataframe.loc[strain, "Strain"]
+            strainDSMZ = strainInfoDataframe.loc[strain, "DSMZ-number"]
 
-            tgt_mAssay = met_assay_df.loc[:, strain_dsmz]
+            targetMetabolicAssay = metabolicAssayDataframe.loc[:, strainDSMZ]
 
-            tps = (
-                ave_cat_biolog_df.loc[:, sample]
+            strainTimepoints = (
+                avg_CategoriesDataframe_BIOLOG.loc[:, strain]
                 .columns.get_level_values(level=0)
                 .unique()
             )
-            for tp in tps:
+            for timepoint in strainTimepoints:
 
-                tgt_biolog = ave_cat_biolog_df.loc[:, (sample, tp)]
-                tgt_bwa = ave_cat_bwa_df.loc[:, (sample, tp)]
-                tgt_590nm = ave_cat_590nm_df.loc[:, (sample, tp)]
+                targetCategories_BIOLOG = avg_CategoriesDataframe_BIOLOG.loc[
+                    :, (strain, timepoint)
+                ]
+                targetCategories_BWA = avg_CategoriesDataframe_BWA.loc[
+                    :, (strain, timepoint)
+                ]
+                targetCategories_590nm = avg_CategoriesDataframe_590nm.loc[
+                    :, (strain, timepoint)
+                ]
 
-                summary_df = pd.DataFrame(index=ave_cat_biolog_df.index)
-                summary_df[("BIOLOG")] = tgt_biolog
-                summary_df[("BWA")] = tgt_bwa
-                summary_df[("590nm")] = tgt_590nm
-                summary_df[("FBA")] = tgt_mAssay
+                summaryDataframe = pd.DataFrame(
+                    index=avg_CategoriesDataframe_BIOLOG.index,
+                )
 
-                summary_df = summary_df.sort_values(
-                    summary_df.columns.tolist(),
+                summaryDataframe[("BIOLOG")] = targetCategories_BIOLOG
+                summaryDataframe[("BWA")] = targetCategories_BWA
+                summaryDataframe[("590nm")] = targetCategories_590nm
+                summaryDataframe[("FBA")] = targetMetabolicAssay
+
+                summaryDataframe = summaryDataframe.sort_values(
+                    summaryDataframe.columns.tolist(),
                     ascending=False,
                 )
 
-                colors_biolog = assign_color(summary_df["BIOLOG"])
-                colors_bwa = assign_color(summary_df["BWA"])
-                colors_590nm = assign_color(summary_df["590nm"])
-                colors_fba = assign_met_assay_color(summary_df["FBA"])
+                summaryColors = assign_and_arrange_colors_to_summaryDataframe()
 
-                colors = combine_colors(
-                    c_biolog=colors_biolog,
-                    c_bwa=colors_bwa,
-                    c_590nm=colors_590nm,
-                    c_fba=colors_fba,
-                )
-
-                fig, ax = plt.subplots(figsize=(width, height))
+                fig, ax = plt.subplots(figsize=(figureWidth, figureHeight))
 
                 table1 = ax.table(
-                    cellText=summary_df.values,
-                    cellColours=colors,
-                    rowLabels=summary_df.index,
+                    cellText=summaryDataframe.values,
+                    cellColours=summaryColors,
+                    rowLabels=summaryDataframe.index,
                     rowLoc="right",
-                    colLabels=summary_df.columns,
+                    colLabels=summaryDataframe.columns,
                     cellLoc="center",
                     loc="best",
                 )
@@ -781,14 +812,14 @@ class BAA:
                 table1.auto_set_font_size(False)
                 table1.set_fontsize(12)
 
-                fig.suptitle(f"{strain_name} {tp}")
+                fig.suptitle(f"{strainName} {timepoint}")
                 ax.axis("off")
                 fig.tight_layout()
 
                 # Save figure
-                if save_figures is True:
+                if saveFigures is True:
 
-                    fig_name = f"{str(sample)}_{str(tp)}_sumtable.png"
+                    fig_name = f"{str(strain)}_{str(timepoint)}_sumtable.png"
 
                     today_data_fdr = self.generate_daily_folder()
                     fig_path = today_data_fdr / fig_name

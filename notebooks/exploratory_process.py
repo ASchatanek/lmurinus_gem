@@ -1,4 +1,6 @@
-import exploratory_variables as ev
+import set_cwd
+import notebooks.exploratory_variables as ev
+
 
 # import pandas_settings
 from src import PathOrganizer
@@ -21,10 +23,34 @@ po = PathOrganizer()
 
 ##############################
 
+draftModels = [
+    "amuciniphila_draft_xml.xml",
+    "amucosicola_draft_xml.xml",
+    "bcaecimuris_draft_xml.xml",
+    "bpseudococcoides_draft_xml.xml",
+    "cinnocuum_draft_xml.xml",
+    "cramosum_draft_xml.xml",
+    "eclostridioformis_draft_xml.xml",
+    "efaecalis_draft_xml.xml",
+    "ecoli_draft_xml.xml",
+    "emuris_draft_xml.xml",
+    "fplautii_draft_xml.xml",
+    "fbutyricus_draft_xml.xml",
+    "lreuteri_draft_xml.xml",
+    "lmurinus_draft_xml.xml",
+    "mschaedleri_draft_xml.xml",
+    "mintestinale_draft_xml.xml",
+    "pgoldsteinii_draft_xml.xml",
+    "tmuris_draft_xml.xml",
+    "xrodentium_draft_xml.xml",
+]
+
+##############################
+
 test = EA()
 
 gotit = test.metabolite_assay(
-    target_models=ev.draftModels,
+    target_models=ev.problematicModels,
     medium=ev.kwoji_updated,
     closed=ev.closed_uptake,
     essential=ev.essential,
@@ -34,18 +60,30 @@ gotit = test.metabolite_assay(
 
 gotit
 
-gotit.to_excel("metabolic_assay_results.xlsx")
-
 ###############################
-am_dir = po.get_draft_model_path(draft_name="amuciniphila_draft_xml.xml")
+am_dir = po.get_draft_model_path(
+    draft_name="bpseudococcoides_draft_xml.xml",
+)
 am_m = po.load_model(am_dir)
 
-am_m.reactions.get_by_id("EX_cpd00264_e0")
-am_m.metabolites.get_by_id("cpd00264_e0")
+ex_am = es(model=am_m)
 
-for m in am_m.metabolites:
+ex_am.add_and_set_media(
+    medium=ev.kwoji_updated,
+    closed_m=ev.closed_uptake,
+    essential_m=ev.essential,
+    medium_df=ev.kwoji_met_df,
+)
 
-    print(m.id)
+am_m.summary()
+
+ex_am.gather_media_fluxes()
+
+ex_am.find_medium_outliers(target_df=ex_am.uptake_df, medium=ev.kwoji_updated)
+
+am_m.metabolites.get_by_id("cpd00149_c0")
+
+am_m.reactions.get_by_id("rxn04045_c0")
 
 ###############################
 ## LMurinus
