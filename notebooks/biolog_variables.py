@@ -133,3 +133,10 @@ bnt_590.identify_result_type(
     limit_i=1.0,
     limit_b=1.5,
 )
+
+# * BNT 750
+bnt_750.identify_result_type(
+    dataframe=bnt_750.normalized_df,
+    limit_i=1.0,
+    limit_b=1.5,
+)

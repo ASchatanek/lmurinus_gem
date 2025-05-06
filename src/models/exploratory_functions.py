@@ -1,4 +1,5 @@
 import cobra
+import cobra.core
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -11,7 +12,7 @@ from cobra import Metabolite
 class Model_Exploration_Tool:
     """Exploration tool for GEM models. Includes a variety of methods to display reactions, set media components and analyse media contraining effects on the model´s predictions."""
 
-    def __init__(self, model: cobra.core.model.Model) -> None:
+    def __init__(self, model: cobra.core.Model) -> None:
         self.model = model
         self.model.optimize()
 
@@ -165,151 +166,297 @@ class Model_Exploration_Tool:
                 med_comp_tgt_rxn = self.model.reactions.get_by_id(med_comp_rxn_id)
                 med_comp_tgt_rxn.bounds = med_comp_rxn_bounds
 
-    def add_assay_metabolites(
+    def create_ATP_maintenance_reaction(self):
+
+        rxn_ATP_maintenance = cobra.Reaction(
+            id="rxn11300_c0",  # ModelSeed ID
+            name="ATP maintenance",
+            lower_bound=0.0,
+            upper_bound=1000.0,
+        )
+
+        rxn_ATP_maintenance.add_metabolites(
+            {
+                self.model.metabolites.get_by_id("cpd00002_c0"): -1.0,  # ATP
+                self.model.metabolites.get_by_id("cpd00001_c0"): -1.0,  # H2O
+                self.model.metabolites.get_by_id("cpd00008_c0"): 1.0,  # ADP
+                self.model.metabolites.get_by_id("cpd00009_c0"): 1.0,  # Phosphate
+                self.model.metabolites.get_by_id("cpd00067_c0"): 1.0,  # H+
+            }
+        )
+
+        return rxn_ATP_maintenance
+
+    def add_and_set_reaction_as_objectiveFunction(self, targetReaction: cobra.Reaction):
+
+        self.model.add_reactions([targetReaction])
+
+        self.model.objective = targetReaction
+
+    def run_optimization(self, optimizationType: str = "FBA"):
+
+        simulationTypes = ["FBA", "llFBA", "pFBA"]
+
+        assert (
+            optimizationType in simulationTypes
+        ), "optimizationType must be FBA, llFBA or pFBA"
+
+        if optimizationType == "FBA":
+
+            optimizationResult = self.model.optimize().objective_value
+
+            return optimizationResult
+
+        elif optimizationType == "llFBA":
+
+            optimizationResult = cobra.flux_analysis.loopless.loopless_solution(
+                self.model
+            ).objective_value
+
+            return optimizationResult
+
+        elif optimizationType == "pFBA":
+
+            optimizationResult = cobra.flux_analysis.pfba(self.model).objective_value
+
+            return optimizationResult
+
+    def determine_biomass_and_ATPmaintenance_NegControl(
         self,
-        mets_df: pd.DataFrame,
-        uptake_bound: float = -50.0,
-        secretion_bound: float = 1000.0,
+        optimizationType: str = "FBA",
     ):
 
+        biomassNegativeControl = self.model.optimize().objective_value
+
+        with self.model:
+
+            rxn_ATP_maintenance = self.create_ATP_maintenance_reaction()
+
+            self.add_and_set_reaction_as_objectiveFunction(
+                targetReaction=rxn_ATP_maintenance
+            )
+
+            ATPM_negativeControl = self.run_optimization(
+                optimizationType=optimizationType,
+            )
+
+        return biomassNegativeControl, ATPM_negativeControl
+
+    def metabolites_growth_energy_optimization_assay(
+        self,
+        metabolitesDataframe: pd.DataFrame,
+        uptakeBound: float = -50.0,
+        secretionBound: float = 1000.0,
+        optimizationType: str = "FBA",
+    ):
+        # Tuple bounds
+        definedBounds = (uptakeBound, secretionBound)
+
         # List comprehension of relevant information in the metabolites dataframe
-        mets_tpl = [
+        metabolitesTuples = [
             (
                 m[0],
                 m[1],
                 m[2],
             )
             for m in zip(
-                mets_df["ModelSeed"],
-                mets_df["Metabolite"],
-                mets_df["Formula"],
+                metabolitesDataframe["ModelSeed"],
+                metabolitesDataframe["Metabolite"],
+                metabolitesDataframe["Formula"],
             )
         ]
 
-        defined_bounds = (uptake_bound, secretion_bound)
+        results_BiomassOptimizations_dict = dict()
+        results_ATP_Optimizations_dict = dict()
 
-        results_dict = dict()
+        biomass_negControl, ATP_negControl = (
+            self.determine_biomass_and_ATPmaintenance_NegControl(
+                optimizationType=optimizationType,
+            )
+        )
 
-        no_met_res = self.model.optimize().objective_value
+        # * Change objective function to ATP Maintenance
 
         # Iteration through list of metabolites' info tuples
-        for m_info in mets_tpl:
+        for metabolite_info in metabolitesTuples:
 
             with self.model:  # * This serves as a "checkpoint" system
 
                 # Establish IDs and Names for both e0 and c0 compartments
                 ## e0 Metabolite
-                e0_met_id = f"{m_info[0]}_e0"  # Adds "_e0" suffix to ModelSeed ID
-                e0_met_exrxn_id = f"EX_{e0_met_id}"  # Adds "EX_" prefix to ex met ID
-                e0_met_name = f"{m_info[1]}-e0"  # Adds "-e0" suffix to met. name
+                e0_metabolite_ID = (
+                    f"{metabolite_info[0]}_e0"  # Adds "_e0" suffix to ModelSeed ID
+                )
+                e0_metaboliteExchangeReaction_ID = (
+                    f"EX_{e0_metabolite_ID}"  # Adds "EX_" prefix to ex met ID
+                )
+                e0_metabolite_name = (
+                    f"{metabolite_info[1]}-e0"  # Adds "-e0" suffix to met. name
+                )
 
                 ## c0 Metabolite
-                c0_met_id = f"{m_info[0]}_c0"  # Adds "_c0" suffix to ModelSeed ID
-                c0_met_name = f"{m_info[1]}-c0"  # Adds "-c0" suffix to met. name
+                c0_metabolite_ID = (
+                    f"{metabolite_info[0]}_c0"  # Adds "_c0" suffix to ModelSeed ID
+                )
+                c0_metabolite_name = (
+                    f"{metabolite_info[1]}-c0"  # Adds "-c0" suffix to met. name
+                )
 
                 # e0 met ID exists?
-                if e0_met_id in self.model.metabolites:
+                if e0_metabolite_ID in self.model.metabolites:
                     # YES
-                    tgt_e0_met = self.model.metabolites.get_by_id(
-                        e0_met_id
+                    target_e0_metabolite = self.model.metabolites.get_by_id(
+                        e0_metabolite_ID
                     )  ## Identify target e0 metabolite
                     ## e0 met exchange reaction exists?
-                    if e0_met_exrxn_id in self.model.reactions:
+                    if e0_metaboliteExchangeReaction_ID in self.model.reactions:
                         # YES
-                        tgt_e0_rxn = self.model.reactions.get_by_id(
-                            e0_met_exrxn_id
+                        target_e0_metaboliteExchangeReaction = (
+                            self.model.reactions.get_by_id(
+                                e0_metaboliteExchangeReaction_ID
+                            )
                         )  ## Identify target e0 ex. rxn
-                        tgt_e0_rxn.bounds = defined_bounds  ## Set defined bounds
+                        target_e0_metaboliteExchangeReaction.bounds = (
+                            definedBounds  ## Set defined bounds
+                        )
                     else:
                         # NO
                         self.model.add_boundary(
-                            tgt_e0_met, type="exchange"
+                            target_e0_metabolite, type="exchange"
                         )  ## Create exchange reaction for target e0 metabolite
-                        tgt_e0_rxn = self.model.reactions.get_by_id(
-                            e0_met_exrxn_id
+                        target_e0_metaboliteExchangeReaction = (
+                            self.model.reactions.get_by_id(
+                                e0_metaboliteExchangeReaction_ID
+                            )
                         )  ## Identify newly created target e0 ex. rxn
-                        tgt_e0_rxn.bounds = defined_bounds  ## Set defined bounds
+                        target_e0_metaboliteExchangeReaction.bounds = (
+                            definedBounds  ## Set defined bounds
+                        )
                 else:
                     # NO
                     ## c0 met ID exists?
-                    if c0_met_id in self.model.metabolites:
+                    if c0_metabolite_ID in self.model.metabolites:
                         # YES
                         tgt_c0_met = self.model.metabolites.get_by_id(
-                            c0_met_id
+                            c0_metabolite_ID
                         )  ## Identify target c0 metabolite
                         ## Determine new e0 metabolite name
-                        e0_met_name = re.search(r"^(.*?)-[cpe]0", tgt_c0_met.name)
-                        if e0_met_name == None:
-                            e0_met_name = f"{tgt_c0_met.name}-e0"
+                        e0_metabolite_name = re.search(
+                            r"^(.*?)-[cpe]0", tgt_c0_met.name
+                        )
+                        if e0_metabolite_name == None:
+                            e0_metabolite_name = f"{tgt_c0_met.name}-e0"
                         else:
-                            e0_met_name = f"{e0_met_name.group(1)}-e0"
+                            e0_metabolite_name = f"{e0_metabolite_name.group(1)}-e0"
 
                         ## Create e0 metabolite using c0 metabolite info
                         self.model.add_metabolites(
                             [
                                 Metabolite(
-                                    id=e0_met_id,
+                                    id=e0_metabolite_ID,
                                     formula=tgt_c0_met.formula,
-                                    name=e0_met_name,
+                                    name=e0_metabolite_name,
                                     compartment="e0",
                                 )
                             ]
                         )
 
-                        tgt_e0_met = self.model.metabolites.get_by_id(
-                            e0_met_id
+                        target_e0_metabolite = self.model.metabolites.get_by_id(
+                            e0_metabolite_ID
                         )  ## Identify new target e0 metabolite
 
                         self.model.add_boundary(
-                            tgt_e0_met, type="exchange"
+                            target_e0_metabolite, type="exchange"
                         )  ## Create exchange reaction for tarrget e0 metabolite
 
-                        tgt_e0_rxn = self.model.reactions.get_by_id(
-                            e0_met_exrxn_id
+                        target_e0_metaboliteExchangeReaction = (
+                            self.model.reactions.get_by_id(
+                                e0_metaboliteExchangeReaction_ID
+                            )
                         )  ## Identify target exchange reaction
 
-                        tgt_e0_rxn.bounds = defined_bounds  ## Set defined bounds
+                        target_e0_metaboliteExchangeReaction.bounds = (
+                            definedBounds  ## Set defined bounds
+                        )
 
                     else:
                         # NO
                         self.model.add_metabolites(
                             [
                                 Metabolite(
-                                    id=e0_met_id,
-                                    formula=m_info[2],
-                                    name=e0_met_name,
+                                    id=e0_metabolite_ID,
+                                    formula=metabolite_info[2],
+                                    name=e0_metabolite_name,
                                     compartment="e0",
                                 )
                             ]
                         )
 
-                        tgt_e0_met = self.model.metabolites.get_by_id(
-                            e0_met_id
+                        target_e0_metabolite = self.model.metabolites.get_by_id(
+                            e0_metabolite_ID
                         )  ## Identify new target e0 metabolite
 
                         self.model.add_boundary(
-                            tgt_e0_met, type="exchange"
+                            target_e0_metabolite, type="exchange"
                         )  ## Create exchange reaction for tarrget e0 metabolite
 
-                        tgt_e0_rxn.bounds = defined_bounds  ## Set defined bounds
+                        target_e0_metaboliteExchangeReaction.bounds = (
+                            definedBounds  ## Set defined bounds
+                        )
 
-                result = self.model.optimize().objective_value
-                result = round(
-                    number=result - no_met_res,
+                # Biomass Optimization
+                optimization_biomass_metabolite = self.model.optimize().objective_value
+
+                optimization_biomass_metabolite = round(
+                    number=optimization_biomass_metabolite - biomass_negControl,
                     ndigits=3,
                 )
-                results_dict[m_info[1]] = result
 
-                # Generate Name for Strain
-                dsmz = re.search(r"^(.*)_([DSM]+.*)", self.model.id).group(2)
-
-                results_df = pd.DataFrame.from_dict(
-                    data=results_dict,
-                    orient="index",
-                    columns=[dsmz],
+                results_BiomassOptimizations_dict[metabolite_info[1]] = (
+                    optimization_biomass_metabolite
                 )
 
-        return results_df
+                # ATP Maintenance Optimization
+
+                ## Add reaction and set as the objective function
+                rxn_ATPmaintenance = self.create_ATP_maintenance_reaction()
+                self.add_and_set_reaction_as_objectiveFunction(rxn_ATPmaintenance)
+
+                ## FBA Optimization
+                optimization_ATPmaintenance_metabolite = self.run_optimization(
+                    optimizationType=optimizationType,
+                )
+
+                ## Difference to negative control
+                optimization_ATPmaintenance_metabolite = round(
+                    number=optimization_ATPmaintenance_metabolite - ATP_negControl,
+                    ndigits=3,
+                )
+
+                ## Add to results dictionary
+                results_ATP_Optimizations_dict[metabolite_info[1]] = (
+                    optimization_ATPmaintenance_metabolite
+                )
+
+                # Generate Name for Strain
+                strain_DSMZ = re.search(r"^(.*)_([DSM]+.*)", self.model.id).group(2)
+
+                results_BiomassOptimizations_DataFrame = pd.DataFrame.from_dict(
+                    data=results_BiomassOptimizations_dict,
+                    orient="index",
+                    columns=[strain_DSMZ],
+                )
+
+                results_ATPmaintenanceOptimizations_Dataframe = pd.DataFrame.from_dict(
+                    data=results_ATP_Optimizations_dict,
+                    orient="index",
+                    columns=[strain_DSMZ],
+                )
+
+        return (
+            results_BiomassOptimizations_DataFrame,
+            results_ATPmaintenanceOptimizations_Dataframe,
+        )
 
     # * Function just to call both media functions
     def add_and_set_media(

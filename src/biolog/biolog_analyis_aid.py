@@ -15,13 +15,15 @@ class BAA:
         pass
 
     def iterate(self, tgt_df: pd.DataFrame):
-        samples = tgt_df.columns.get_level_values(level=0).unique()
+        cellStrains = tgt_df.columns.get_level_values(level=0).unique()
 
-        for sample in samples:
+        for sample in cellStrains:
 
-            tps = tgt_df.loc[:, sample].columns.get_level_values(level=0).unique()
+            strainTimepoints = (
+                tgt_df.loc[:, sample].columns.get_level_values(level=0).unique()
+            )
 
-            for tp in tps:
+            for tp in strainTimepoints:
 
                 plates = (
                     tgt_df.loc[:, (sample, tp)]
@@ -33,16 +35,54 @@ class BAA:
                     tgt = (sample, tp, plate)
                     yield (tgt)
 
-    def transform_ids_to_numbers(
+    def determine_average_categories(self, targetData: pd.Series):
+
+        avg_targetData = targetData.mean(axis=1)
+
+        avg_Categories = []
+
+        for avg_Value in avg_targetData:
+            if avg_Value < 0.5:
+                avg_Categories.append(0)  # 0 is equal to "Indifferent"
+            elif avg_Value < 1.5:
+                avg_Categories.append(1)  # 1 is equal to "Boundary"
+            else:
+                avg_Categories.append(2)  # 2 is equal to "Positive"
+
+        return avg_Categories
+
+    def transform_categories_to_intergers(
         self,
         categoriesDataframe: pd.DataFrame,
     ) -> pd.DataFrame:
 
+        def category_to_int(targetCategory):
+
+            # Possible Categories
+            indifferent = "I"
+            boundary = "B"
+            positive = "P"
+
+            # Used to identify any errors while aquiring data
+            noValueFound = "E"
+
+            # Assign intergers to possible categories
+            if targetCategory == indifferent:
+                return 0
+            elif targetCategory == boundary:
+                return 1
+            elif targetCategory == positive:
+                return 2
+            else:
+                return noValueFound
+
+        ## Generate intergerDataframe with categoriesDataframe arquitecture
         intergerDataframe = pd.DataFrame(
             index=categoriesDataframe.index,
             columns=categoriesDataframe.columns,
         )
 
+        ## Iteration
         cellStrains = categoriesDataframe.columns.get_level_values(level=0).unique()
         for strain in cellStrains:
             strainTimepoints = (
@@ -63,250 +103,304 @@ class BAA:
 
                         targetCombination = (strain, timepoint, plate)
 
-                        if (
-                            categoriesDataframe.loc[metabolite, targetCombination]
-                            == "I"
-                        ):
-                            intergerDataframe.loc[metabolite, targetCombination] = 0
-                        elif (
-                            categoriesDataframe.loc[metabolite, targetCombination]
-                            == "B"
-                        ):
-                            intergerDataframe.loc[metabolite, targetCombination] = 1
-                        elif (
-                            categoriesDataframe.loc[metabolite, targetCombination]
-                            == "P"
-                        ):
-                            intergerDataframe.loc[metabolite, targetCombination] = 2
-                        else:
-                            intergerDataframe.loc[metabolite, targetCombination] == "E"
+                        metaboliteCategory = categoriesDataframe.loc[
+                            metabolite,
+                            targetCombination,
+                        ]
+
+                        intergerDataframe.loc[metabolite, targetCombination] = (
+                            category_to_int(metaboliteCategory)
+                        )
 
         return intergerDataframe
 
     # * Generate dataframe containing the average category
-    def generate_category_dfs(self, categories_dataframe: pd.DataFrame):
-
-        cat_df = categories_dataframe
-
-        res_ave_cat_df = pd.DataFrame(index=cat_df.index)
-
-        # Iteration
-        samples = cat_df.columns.get_level_values(level=0).unique()
-        for sample in samples:
-
-            tps = cat_df.loc[:, sample].columns.get_level_values(level=0).unique()
-            for tp in tps:
-
-                ## Determine the mean across every sample/timepoint combination
-                tgt_means = cat_df.loc[:, (sample, tp)].mean(axis=1)
-
-                ## Category determined by the mayority, this math only works if there are 3 plates
-                res_cats = []
-                for mean in tgt_means:
-                    if mean < 0.5:
-                        res_cats.append(0)  # 0 is equal to "Indifferent"
-                    elif mean < 1.5:
-                        res_cats.append(1)  # 1 is equal to "Boundary"
-                    else:
-                        res_cats.append(2)  # 2 is equal to "Positive"
-
-                ## Add resulting category to Results Average Categories df
-                res_ave_cat_df[(sample, tp)] = res_cats
-
-                multi_col = pd.MultiIndex.from_tuples(
-                    res_ave_cat_df.columns, names=["Sample", "TP"]
-                )
-
-                res_ave_cat_df.columns = multi_col
-
-                res_ave_cat_df = res_ave_cat_df.sort_index(axis=1)
-
-        return res_ave_cat_df
-
-    # * Generate dataframes containing the average category and range stats
-    def generate_category_and_range_dfs(
+    def generate_avg_categoriesDataframe(
         self,
-        data_dataframe: pd.DataFrame,
-        categories_dataframe: pd.DataFrame,
+        categoriesDataframe: pd.DataFrame,
     ):
 
-        # Rename df objects with shorter named variables
-        data_df = data_dataframe
-        cat_df = categories_dataframe
-
-        # Copy data dataframe for its layout
-        mean_cat_df = data_df.copy()
-
-        # Generate lists to store timepoints and range statistics
-        sample_tps = []  # Store (sample, timepoint) combinations
-        range_mins = []  # Store minimum value across plates
-        range_maxs = []  # Story maximum value across plates
-        range_difs = []  # Store maximum range
+        # Generate avg_categoriesDataframe using categoriesDataframe index structure
+        avg_CategoriesDataframe = pd.DataFrame(
+            index=categoriesDataframe.index,
+        )
 
         # Iteration
-        samples = cat_df.columns.get_level_values(level=0).unique()
-        for sample in samples:
+        cellStrains = categoriesDataframe.columns.get_level_values(level=0).unique()
+        for strain in cellStrains:
 
-            tps = cat_df.loc[:, sample].columns.get_level_values(level=0).unique()
-            for tp in tps:
+            strainTimepoints = (
+                categoriesDataframe.loc[:, strain]
+                .columns.get_level_values(level=0)
+                .unique()
+            )
 
-                ## Determine the mean across every sample/timepoint combination
-                tgt_means = cat_df.loc[:, (sample, tp)].mean(axis=1)
+            for timepoint in strainTimepoints:
 
-                ## Category determined by the mayority, this math only works if there are 3 plates
-                res_cats = []
-                for mean in tgt_means:
-                    if mean < 0.5:
-                        res_cats.append(0)  # 0 is equal to "Indifferent"
-                    elif mean < 1.5:
-                        res_cats.append(1)  # 1 is equal to "Boundary"
-                    else:
-                        res_cats.append(2)  # 2 is equal to "Positive"
+                tgt_CategoriesDataframe = categoriesDataframe.loc[
+                    :, (strain, timepoint)
+                ]
+
+                avg_Categories = self.determine_average_categories(
+                    targetData=tgt_CategoriesDataframe,
+                )
+
+                ## Add resulting category to Results Average Categories df
+                avg_CategoriesDataframe[(strain, timepoint)] = avg_Categories
+
+                ## MultiIndex Columns
+                ### Generate
+                MultiIndexColumns = pd.MultiIndex.from_tuples(
+                    avg_CategoriesDataframe.columns,
+                    names=["Sample", "TP"],
+                )
+
+                ### Assign
+                avg_CategoriesDataframe.columns = MultiIndexColumns
+
+                ### Sort
+                avg_CategoriesDataframe = avg_CategoriesDataframe.sort_index(axis=1)
+
+        return avg_CategoriesDataframe
+
+    def determine_rangeStatistics(self, targetDataframe: pd.DataFrame):
+
+        # Determine the minimum and maximum value across all plates
+        xy_min = targetDataframe.min().min()
+        xy_max = targetDataframe.max().max()
+        xy_dif = xy_max - xy_min
+
+        # Round up values 3 decimal points
+        xy_min = float(round(xy_min, 3))
+        xy_max = float(round(xy_max, 3))
+        xy_dif = float(round(xy_dif, 3))
+
+        return xy_min, xy_max, xy_dif
+
+    def add_categories_to_targetDataframe(
+        self,
+        categoriesDataframe: pd.DataFrame,
+        targetDataframe: pd.DataFrame,
+    ):
+
+        # Generate copy of targetDataframe as merged_targetDataframe
+        merged_targetDataframe = targetDataframe.copy()
+
+        cellStrains = categoriesDataframe.columns.get_level_values(level=0).unique()
+
+        for strain in cellStrains:
+
+            strainTimepoints = (
+                categoriesDataframe.loc[:, strain]
+                .columns.get_level_values(level=0)
+                .unique()
+            )
+
+            for timepoint in strainTimepoints:
+
+                # Add targetCategories to merged_targetDataframe
 
                 ## Column name of the established categorization
-                column_title = f"Cat. Mean {str(tp)}"
+                columnTitle = f"Cat. Mean {str(timepoint)}"
 
-                ## Add resulting category to general mean target dataframe
-                mean_cat_df[(sample, tp, column_title)] = res_cats
-                mean_cat_df = mean_cat_df.sort_index(axis=1)
+                ## Define targetCategories
+                targetCategories = categoriesDataframe.loc[:, (strain, timepoint)]
 
-                ## Determine the minimum and maximum value across all plates
-                xy_min = data_df.loc[:, (sample, tp)].min().min()
-                xy_max = data_df.loc[:, (sample, tp)].max().max()
-                xy_dif = xy_max - xy_min
+                ## Add targetCategories
+                merged_targetDataframe[(strain, timepoint, columnTitle)] = (
+                    targetCategories
+                )
 
-                ## Round up values and change to float
-                smpl_tp = (sample, tp)
-                xy_min = float(round(xy_min, 3))
-                xy_max = float(round(xy_max, 3))
-                xy_dif = float(round(xy_dif, 3))
+                ## Sort merged_targetDataframe
+                merged_targetDataframe = merged_targetDataframe.sort_index(axis=1)
 
-                ## Append range stats to their respective lists
-                sample_tps.append(smpl_tp)
-                range_mins.append(xy_min)
-                range_maxs.append(xy_max)
-                range_difs.append(xy_dif)
+        return merged_targetDataframe
 
-        multi_strains_tp = pd.MultiIndex.from_tuples(sample_tps, names=["Sample", "TP"])
+    def generate_rangeStatsDataframe(
+        self,
+        targetDataframe: pd.DataFrame,
+    ):
+
+        # Lists
+        strainTimepointCombinations = []  # Store (strain, timepoint) combinations
+        rangeMinimums = []  # Store minimum value across plates
+        rangeMaximums = []  # Story maximum value across plates
+        rangeDifferences = []  # Store maximum range
+
+        cellStrains = targetDataframe.columns.get_level_values(level=0).unique()
+
+        for strain in cellStrains:
+
+            strainTimepoints = (
+                targetDataframe.loc[:, strain]
+                .columns.get_level_values(level=0)
+                .unique()
+            )
+
+            for timepoint in strainTimepoints:
+
+                # Assemble comb_strainTimepoint
+                comb_strainTimepoint = (strain, timepoint)
+
+                # Determine minimumXY, maximumXY and differenceXY
+                (
+                    min_XY,
+                    max_XY,
+                    dif_XY,
+                ) = self.determine_rangeStatistics(
+                    targetDataframe=targetDataframe.loc[:, comb_strainTimepoint]
+                )
+
+                # Append information to corresponding lists
+                strainTimepointCombinations.append(comb_strainTimepoint)
+                rangeMinimums.append(min_XY)
+                rangeMaximums.append(max_XY)
+                rangeDifferences.append(dif_XY)
+
+        # Generate MultiIndex with comb_strainTimepoints
+        comb_strainTimepoint_MultiIndex = pd.MultiIndex.from_tuples(
+            strainTimepointCombinations, names=["Sample", "TP"]
+        )
 
         # Establish dictionary for range stats to generate dataframe
         range_dict = {
-            "Range Min": range_mins,
-            "Range Max": range_maxs,
-            "Range Dif": range_difs,
+            "Range Min": rangeMinimums,
+            "Range Max": rangeMaximums,
+            "Range Dif": rangeDifferences,
         }
 
         # Range Stats Dataframe
-        range_stats_df = pd.DataFrame(range_dict, index=multi_strains_tp)
+        rangeStatsDataframe = pd.DataFrame(
+            range_dict, index=comb_strainTimepoint_MultiIndex
+        )
 
-        return mean_cat_df, range_stats_df
+        return rangeStatsDataframe
 
-    def determine_categories_df(
+    def fetch_avg_categoriesDataframe(
         self,
-        categories_dataframe: pd.DataFrame,
+        categoriesDataframe: pd.DataFrame,
     ):
 
-        trans_cat_df = self.transform_ids_to_numbers(
-            categoriesDataframe=categories_dataframe,
+        trans_categoriesDataframe = self.transform_categories_to_intergers(
+            categoriesDataframe=categoriesDataframe,
         )
 
-        res_cat_df = self.generate_category_dfs(
-            categories_dataframe=trans_cat_df,
+        avg_categoriesDataframe = self.generate_avg_categoriesDataframe(
+            categoriesDataframe=trans_categoriesDataframe,
         )
 
-        return res_cat_df
+        return avg_categoriesDataframe
 
-    def determine_categories_and_range_stats(
+    def fetch_merged_targetDataframe(
         self,
-        data_dataframe: pd.DataFrame,
-        categories_dataframe: pd.DataFrame,
+        categoriesDataframe,
+        targetDataframe,
     ):
 
-        trans_cat_df = self.transform_ids_to_numbers(
-            categoriesDataframe=categories_dataframe,
+        avg_categoriesDataframe = self.fetch_avg_categoriesDataframe(
+            categoriesDataframe=categoriesDataframe,
         )
 
-        res_mean_cat_df, res_rng_stats_df = self.generate_category_and_range_dfs(
-            data_dataframe=data_dataframe,
-            categories_dataframe=trans_cat_df,
+        merged_targetDataframe = self.add_categories_to_targetDataframe(
+            categoriesDataframe=avg_categoriesDataframe,
+            targetDataframe=targetDataframe,
         )
 
-        return res_mean_cat_df, res_rng_stats_df
+        return merged_targetDataframe
 
-    def values_distribution(
+    def fetch_essentialMetabolites(
         self,
-        data_dataframe: pd.DataFrame,
-        categories_dataframe: pd.DataFrame,
-        strain_id_dataframe: pd.DataFrame,
+        metabolitesDataframe: pd.DataFrame,
+    ):
+
+        essentialMetabolites = [
+            [metabolite]
+            for metabolite in metabolitesDataframe.loc[
+                metabolitesDataframe["Essential"] == 1, "Compound"
+            ]
+        ]
+
+        return essentialMetabolites
+
+    def generate_plateDistributionsPairGrids(
+        self,
+        targetData: pd.DataFrame,
+        categoriesDataframe: pd.DataFrame,
+        strainIDsDataframe: pd.DataFrame,
         kde_thresh: float = 0.1,
         kde_levels: int = 5,
-        diag_cut: float = 2,
-        save_figures: bool = False,
+        saveFigures: bool = False,
     ):
 
-        # Transform categories to numbers and generate mean_categories_dataframe and range_dataframe
-        data_df, range_stats_df = self.determine_categories_and_range_stats(
-            data_dataframe=data_dataframe,
-            categories_dataframe=categories_dataframe,
+        merged_targetDataframe = self.fetch_merged_targetDataframe(
+            categoriesDataframe=categoriesDataframe,
+            targetDataframe=targetData,
         )
 
-        # * Series of inputs to name files if saved
+        rangeStatsDataframe = self.generate_rangeStatsDataframe(
+            targetDataframe=targetData,
+        )
+
+        ##### * INPUTS FOR FIGURES * #####
         ## Input for data type
-        if save_figures is True:
-            data_name = input(
+        dataType = input("What is the target data's type? (BWA, 535nm, 590nm, etc...)")
+
+        ## Input for whether the data has been normalized by BNT
+        dataNormStatus = input("Is the target data normalized? (Y, N)")
+        if dataNormStatus == "Y":
+            dataNormStatus = "normalized"
+        else:
+            dataNormStatus = "raw"
+
+        ## Input for categorization type
+        categoriesType = input("What is the categorization type (BIOLOG, BNT, BEAT)")
+
+        ##### * INPUTS IF saveFigures is TRUE * #####
+        ## Input for data type
+        if saveFigures is True:
+            fileDataName = input(
                 "Name of the data dataframe? sample_tp_[input]_categorizationname"
             )
 
-            if data_name == "":
-                save_figures = False
+            if fileDataName == "":
+                saveFigures = False
 
         ## Input for categorization type
-        if save_figures is True:
-            id_name = input(
+        if saveFigures is True:
+            fileCategoriesName = input(
                 "Name of the categorization dataframe? sample_tp_dataname_[input]"
             )
 
-            if id_name == "":
-                save_figures = False
-
-        # * Series of inputs for figures
-
-        ## Input for data type
-        data_type = input("What is the data's type? (BWA, 535nm, 590nm, etc...)")
-
-        ## Input for whether the data has been normalized by BNT
-        norm_data = input("Is the data normalized? (Y, N)")
-        if norm_data == "Y":
-            norm_data = "normalized"
-        else:
-            norm_data = "raw"
-
-        ## Input for categorization type
-        cat_type = input("What is the categorization type (BIOLOG, BNT, BEAT)")
+            if fileCategoriesName == "":
+                saveFigures = False
 
         # Iteration
-        samples = data_df.columns.get_level_values(level=0).unique()
-        for sample in samples:
+        cellStrains = merged_targetDataframe.columns.get_level_values(level=0).unique()
+        for strain in cellStrains:
 
             # Fetch strain name to substitute ID number
-            strain_name = strain_id_dataframe.loc[sample, "Strain"]
+            strainName = strainIDsDataframe.loc[strain, "Strain"]
 
-            tps = data_df.loc[:, sample].columns.get_level_values(level=0).unique()
-            for tp in tps:
+            strainTimepoints = (
+                merged_targetDataframe.loc[:, strain]
+                .columns.get_level_values(level=0)
+                .unique()
+            )
+            for timepoint in strainTimepoints:
 
                 # Fetch maximum and minimum from range stats df
-                xy_min = range_stats_df.loc[(sample, tp), "Range Min"]
-                xy_max = range_stats_df.loc[(sample, tp), "Range Max"]
+                xy_min = rangeStatsDataframe.loc[(strain, timepoint), "Range Min"]
+                xy_max = rangeStatsDataframe.loc[(strain, timepoint), "Range Max"]
 
                 # Determine the standard maximum and minimum values to use in graphs
                 xy_min = xy_min - (0.2 * xy_max)
                 xy_max = xy_max + (0.2 * xy_max)
 
                 # Set current target section of the general mean target dataframe for plotting
-                tgt_in_df = data_df.loc[:, (sample, tp)]
+                pairGrid_targetData = merged_targetDataframe.loc[:, (strain, timepoint)]
 
                 # Column name of the established categorization
-                title = f"Cat. Mean {str(tp)}"
+                pairGrid_targetHue = f"Cat. Mean {str(timepoint)}"
 
                 # Function to plot regression line plot
                 def plot_regplot(x, y, **kwargs):
@@ -323,8 +417,8 @@ class BAA:
 
                 # Results are displayed in a Pair Grid system of seaborn
                 g = sns.PairGrid(
-                    data=tgt_in_df,
-                    hue=title,
+                    data=pairGrid_targetData,
+                    hue=pairGrid_targetHue,
                     corner=False,
                     palette="colorblind",
                     height=4,
@@ -332,7 +426,7 @@ class BAA:
 
                 # Name PairGrids by strain name and timepoint
                 g.figure.suptitle(
-                    f"{strain_name} at {tp} hrs\nData: {data_type} ({norm_data})   Categorization: {cat_type} ",
+                    f"{strainName} at {timepoint} hrs\nData: {dataType} ({dataNormStatus})   Categorization: {categoriesType} ",
                     y=1.02,
                     fontweight="bold",
                 )
@@ -351,7 +445,7 @@ class BAA:
                     sns.scatterplot,
                 )
 
-                g.map_lower(plot_regplot, color="crimson", data=tgt_in_df)
+                g.map_lower(plot_regplot, color="crimson", data=pairGrid_targetData)
 
                 # Upper KDE Plots
                 g.map_upper(
@@ -372,12 +466,11 @@ class BAA:
                 g.add_legend()
 
                 ## Legend Title
-                leg_title = "Categories"
-                g._legend.set_title(leg_title)
+                g._legend.set_title("Categories")
 
                 ## Legend Labels
-                leg_labels = ["Indifferent", "Boundary", "Positive"]
-                for text, label in zip(g._legend.texts, leg_labels):
+                legendLabels = ["Indifferent", "Boundary", "Positive"]
+                for text, label in zip(g._legend.texts, legendLabels):
                     text.set_text(label)
 
                 # Calculate Slope, Intercept, R-Value, P-Value and Standard Error for the regression line
@@ -410,136 +503,139 @@ class BAA:
                             )
 
                 # Save figure
-                if save_figures is True:
+                if saveFigures is True:
 
-                    fig_name = (
-                        f"{str(sample)}_{str(tp)}_{str(data_name)}_{str(id_name)}.png"
-                    )
+                    figureName = f"{str(strain)}_{str(timepoint)}_{str(fileDataName)}_{str(fileCategoriesName)}.png"
 
-                    today_data_fdr = self.generate_daily_folder()
-                    fig_path = today_data_fdr / fig_name
-                    fig_path.resolve()
+                    today_dataFolder = self.generate_daily_folder()
+                    figurePath = today_dataFolder / figureName
+                    figurePath.resolve()
 
-                    g.savefig(fig_path)
+                    g.savefig(figurePath)
 
                 plt.show()
 
-    def determine_essential_metabolites(
-        self,
-        mets_dataframe: pd.DataFrame,
-    ):
-
-        mets_df = mets_dataframe
-
-        e_mets = [[met] for met in mets_df.loc[mets_df["Essential"] == 1, "Compound"]]
-
-        return e_mets
-
     # Generate a dataframe which defines range stats and metabolites of interest (positive, boundary) based on average categorization per strain/tp combination
-    def generate_summary_report(
+    def generate_summaryPieChartReports(
         self,
-        data_dataframe: pd.DataFrame,
-        categories_dataframe: pd.DataFrame,
-        strain_id_dataframe: pd.DataFrame,
-        mets_dataframe: pd.DataFrame,
-        save_figures=False,
+        targetData: pd.DataFrame,
+        categoriesDataframe: pd.DataFrame,
+        strainIDsDataframe: pd.DataFrame,
+        metabolitesDataframe: pd.DataFrame,
+        saveFigures=False,
     ):
+
+        # Compare lists function
+        def highlight_eMets_in_targetList(eMets, targetList):
+            highlights = []
+            for cval in targetList:
+                if cval in eMets:
+                    highlights.append(["tab:green"])
+                else:
+                    highlights.append(["w"])
+            return highlights
 
         # * Series of inputs to name files if saved
         ## Input for data type
-        if save_figures is True:
-            data_name = input(
+        if saveFigures is True:
+            fileDataName = input(
                 "Name of the data dataframe? sample_tp_[input]_categorizationname"
             )
 
-            if data_name == "":
-                save_figures = False
+            if fileDataName == "":
+                saveFigures = False
 
         ## Input for categorization type
-        if save_figures is True:
-            id_name = input(
+        if saveFigures is True:
+            fileCategoriesName = input(
                 "Name of the categorization dataframe? sample_tp_dataname_[input]"
             )
 
-            if id_name == "":
-                save_figures = False
+            if fileCategoriesName == "":
+                saveFigures = False
 
         # * Series of inputs for figures
 
         ## Input for data type
-        data_type = input("What is the data's type? (BWA, 535nm, 590nm, etc...)")
+        dataType = input("What is the data's type? (BWA, 535nm, 590nm, etc...)")
 
         ## Input for categorization type
-        cat_type = input("What is the categorization type (BIOLOG, BNT, BEAT)")
+        categoriesType = input("What is the categorization type (BIOLOG, BNT, BEAT)")
 
-        # Transform categories to numbers and generate mean_categories_dataframe and range_dataframe
-        mean_cat_df, range_df = self.determine_categories_and_range_stats(
-            data_dataframe=data_dataframe,
-            categories_dataframe=categories_dataframe,
+        merged_targetDataframe = self.fetch_merged_targetDataframe(
+            categoriesDataframe=categoriesDataframe,
+            targetDataframe=targetData,
         )
 
-        e_mets_list = self.determine_essential_metabolites(
-            mets_dataframe=mets_dataframe,
+        essentialMetabolites = self.fetch_essentialMetabolites(
+            metabolitesDataframe=metabolitesDataframe,
         )
-
-        # Compare lists function
-        def comp(rlist, clist):
-            colors = []
-            for cval in clist:
-                if cval in rlist:
-                    colors.append(["tab:green"])
-                else:
-                    colors.append(["w"])
-            return colors
 
         # Iteration
-        samples = mean_cat_df.columns.get_level_values(level=0).unique()
-        for sample in samples:
+        cellStrains = merged_targetDataframe.columns.get_level_values(level=0).unique()
+        for strain in cellStrains:
 
             # Fetch strain name to substitute ID number
-            strain_name = strain_id_dataframe.loc[sample, "Strain"]
+            strainName = strainIDsDataframe.loc[strain, "Strain"]
 
-            tps = mean_cat_df.loc[:, sample].columns.get_level_values(level=0).unique()
-            for tp in tps:
+            strainTimepoints = (
+                merged_targetDataframe.loc[:, strain]
+                .columns.get_level_values(level=0)
+                .unique()
+            )
+            for timepoint in strainTimepoints:
 
-                title = f"Cat. Mean {str(tp)}"
+                avg_categoryColumnTitle = f"Cat. Mean {str(timepoint)}"
 
-                positive = [
+                positive_metabolites = [
                     [met]
-                    for met in mean_cat_df.index
-                    if mean_cat_df.loc[met, (sample, tp, title)] == 2
+                    for met in merged_targetDataframe.index
+                    if merged_targetDataframe.loc[
+                        met, (strain, timepoint, avg_categoryColumnTitle)
+                    ]
+                    == 2
                 ]
-                boundary = [
+                boundary_metabolites = [
                     [met]
-                    for met in mean_cat_df.index
-                    if mean_cat_df.loc[met, (sample, tp, title)] == 1
+                    for met in merged_targetDataframe.index
+                    if merged_targetDataframe.loc[
+                        met, (strain, timepoint, avg_categoryColumnTitle)
+                    ]
+                    == 1
                 ]
-                indifferent = [
+                indifferent_metabolites = [
                     [met]
-                    for met in mean_cat_df.index
-                    if mean_cat_df.loc[met, (sample, tp, title)] == 0
+                    for met in merged_targetDataframe.index
+                    if merged_targetDataframe.loc[
+                        met, (strain, timepoint, avg_categoryColumnTitle)
+                    ]
+                    == 0
                 ]
 
                 pie_dict = {
-                    "Sample - TP": (sample, tp),
-                    "Strain": strain_name,
-                    "Positive": positive,
-                    "Boundary": boundary,
-                    "Indifferent": indifferent,
+                    "Sample - TP": (strain, timepoint),
+                    "Strain": strainName,
+                    "Positive": positive_metabolites,
+                    "Boundary": boundary_metabolites,
+                    "Indifferent": indifferent_metabolites,
                 }
 
                 ## Creating Datasets
-                categories = ["Positive", "Boundary", "Indifferent"]
-                data = [len(positive), len(boundary), len(indifferent)]
+                categoriesLegend = ["Positive", "Boundary", "Indifferent"]
+                pieChart_valueCounts = [
+                    len(positive_metabolites),
+                    len(boundary_metabolites),
+                    len(indifferent_metabolites),
+                ]
 
-                ## Creating explode data
-                explode = (0.1, 0.1, 0.1)
+                ## Creating explode pieChart_valueCounts
+                pieChart_explode = (0.1, 0.1, 0.1)
 
                 ## Creating color parameters
-                colors = ("tab:blue", "tab:orange", "tab:gray")
+                pieChart_colors = ("tab:blue", "tab:orange", "tab:gray")
 
                 ## Wedge properties
-                wp = {
+                pieChart_wedge = {
                     "linewidth": 1,
                     "edgecolor": "black",
                 }
@@ -553,20 +649,20 @@ class BAA:
                 ax_1 = fig.add_subplot(1, 4, 1)
 
                 wedges, texts, autotexts = ax_1.pie(
-                    data,
-                    autopct=lambda pct: autocpt(pct, data),
-                    explode=explode,
+                    pieChart_valueCounts,
+                    autopct=lambda pct: autocpt(pct, pieChart_valueCounts),
+                    explode=pieChart_explode,
                     shadow=False,
-                    colors=colors,
+                    colors=pieChart_colors,
                     startangle=90,
-                    wedgeprops=wp,
+                    wedgeprops=pieChart_wedge,
                     textprops=dict(color="black"),
                 )
 
                 ## Adding legend
                 ax_1.legend(
                     wedges,
-                    categories,
+                    categoriesLegend,
                     title="Categories",
                     loc="center right",
                     bbox_to_anchor=(0.1, -0.6, 0.5, 1),
@@ -579,60 +675,66 @@ class BAA:
                 )
 
                 ## Assign colors for positive and boundary cells if metabolites present in essential metabolites list
-                p_colors = comp(rlist=e_mets_list, clist=positive)
-                b_colors = comp(rlist=e_mets_list, clist=boundary)
+                positive_highlights = highlight_eMets_in_targetList(
+                    eMets=essentialMetabolites,
+                    targetList=positive_metabolites,
+                )
+                boundary_hightlights = highlight_eMets_in_targetList(
+                    eMets=essentialMetabolites,
+                    targetList=boundary_metabolites,
+                )
 
                 # Table essential metabolites
-                if len(e_mets_list) != 0:
-                    ax_2 = fig.add_subplot(1, 4, 2)
-                    ax_2.table(
-                        cellText=e_mets_list,
+                if len(essentialMetabolites) != 0:
+                    table_essentialMetabolites = fig.add_subplot(1, 4, 2)
+                    table_essentialMetabolites.table(
+                        cellText=essentialMetabolites,
                         colLabels=["Essential"],
                         colColours=["tab:green"],
                         loc="upper center",
                         cellLoc="center",
                         edges="closed",
                     ).scale(0.9, 1.3)
-                    ax_2.axis("off")
+                    table_essentialMetabolites.axis("off")
 
                 # Table positive metabolites
-                if len(positive) != 0:
-                    ax_3 = fig.add_subplot(1, 4, 3)
-                    ax_3.table(
-                        cellText=positive,
+                if len(positive_metabolites) != 0:
+                    table_positiveMetabolites = fig.add_subplot(1, 4, 3)
+                    table_positiveMetabolites.table(
+                        cellText=positive_metabolites,
                         colLabels=["Positive"],
                         colColours=["tab:blue"],
-                        cellColours=p_colors,
+                        cellColours=positive_highlights,
                         loc="upper center",
                         cellLoc="center",
                         edges="closed",
                     ).scale(0.9, 1.3)
-                    ax_3.axis("off")
+                    table_positiveMetabolites.axis("off")
 
                 # Table boundary metabolites
-                if len(boundary) != 0:
-                    ax_4 = fig.add_subplot(1, 4, 4)
-                    ax_4.table(
-                        cellText=boundary,
+                if len(boundary_metabolites) != 0:
+                    table_boundaryMetabolites = fig.add_subplot(1, 4, 4)
+                    table_boundaryMetabolites.table(
+                        cellText=boundary_metabolites,
                         colLabels=["Boundary"],
                         colColours=["tab:orange"],
-                        cellColours=b_colors,
+                        cellColours=boundary_hightlights,
                         loc="upper center",
                         cellLoc="center",
                         edges="closed",
                     ).scale(0.9, 1.3)
-                    ax_4.axis("off")
+                    table_boundaryMetabolites.axis("off")
 
                 fig.suptitle(
-                    f"{strain_name} at {tp} hrs\nData: {data_type}   Categorization: {cat_type}",
+                    f"{strainName} at {timepoint} hrs\nData: {dataType}   Categorization: {categoriesType}",
                     y=0.97,
                     fontweight="bold",
                 )
 
                 # Save figure
-                if save_figures is True:
+                if saveFigures is True:
 
-                    fig_name = f"sr_{str(sample)}_{str(tp)}_{str(data_name)}_{str(id_name)}.png"
+                    fig_name = f"sr_{str(strain)}_{str(timepoint)}_{str(fileDataName)}_{str(fileCategoriesName)}.png"
 
                     today_data_fdr = self.generate_daily_folder()
                     fig_path = today_data_fdr / fig_name
@@ -649,44 +751,53 @@ class BAA:
         today = datetime.today()
 
         # Define as string
-        datestr = today.strftime("%Y_%m_%d")
+        dateString = today.strftime("%Y_%m_%d")
 
         # Define and resolve the path to the new data folder
-        date_path = Path.cwd() / "reports" / "data" / datestr
-        date_path.resolve()
+        datePath = Path.cwd() / "reports" / "data" / dateString
+        datePath.resolve()
 
         # Generate folder
-        Path(date_path).mkdir(parents=True, exist_ok=True)
+        Path(datePath).mkdir(
+            parents=True,
+            exist_ok=True,
+        )
 
         # Return folder's path as a Path object
-        return date_path
+        return datePath
 
-    #################################### * GENERATE SUPER REPORT
-    def generate_super_report(
+    ########### GENERATE Summary Categories and Metabolic Assay Table ###########
+    def generate_SummaryCategoriesMetAssayTable(
         self,
         categoriesDataframe_BIOLOG: pd.DataFrame,
         categoriesDataframe_BWA: pd.DataFrame,
         categoriesDataframe_590nm: pd.DataFrame,
+        categoriesDataframe_750nm: pd.DataFrame,
         strainInfoDataframe: pd.DataFrame,
-        metabolicAssayDataframe: pd.DataFrame,
-        figureWidth: float = 6,
+        biomass_metAssayData: pd.DataFrame,
+        mainAPC_metAssayData: pd.DataFrame,
+        figureWidth: float = 8,
         figureHeight: float = 20,
         saveFigures: bool = False,
     ):
 
         # Generate Average Categorization for BIOLOG Categorizations
-        avg_CategoriesDataframe_BIOLOG = self.determine_categories_df(
-            categories_dataframe=categoriesDataframe_BIOLOG,
+        avg_CategoriesDataframe_BIOLOG = self.fetch_avg_categoriesDataframe(
+            categoriesDataframe=categoriesDataframe_BIOLOG,
         )
 
         # Generate Average Categorization for BWA Normalized Categorizations
-        avg_CategoriesDataframe_BWA = self.determine_categories_df(
-            categories_dataframe=categoriesDataframe_BWA,
+        avg_CategoriesDataframe_BWA = self.fetch_avg_categoriesDataframe(
+            categoriesDataframe=categoriesDataframe_BWA,
         )
 
         # Generate Average Categorization for 590nm Normalized Categorizations
-        avg_CategoriesDataframe_590nm = self.determine_categories_df(
-            categories_dataframe=categoriesDataframe_590nm,
+        avg_CategoriesDataframe_590nm = self.fetch_avg_categoriesDataframe(
+            categoriesDataframe=categoriesDataframe_590nm,
+        )
+
+        avg_CategoriesDataframe_750nm = self.fetch_avg_categoriesDataframe(
+            categoriesDataframe=categoriesDataframe_750nm,
         )
 
         def assign_colors_to_categories(categoriesList):
@@ -701,7 +812,7 @@ class BAA:
 
             return categoriesColors
 
-        def assign_colors_to_metAssayData(metabolicAssayData):
+        def assign_colors_to_metAssayData_Biomass(metabolicAssayData):
             metAssayDataColors = []
             for category in metabolicAssayData:
                 if category >= 0.1:
@@ -713,11 +824,25 @@ class BAA:
 
             return metAssayDataColors
 
+        def assign_colors_to_metAssayData_maintenanceAPC(metAssayData_APC):
+            metAssayDataColors_APC = []
+            for datapoint in metAssayData_APC:
+                if datapoint >= 200:
+                    metAssayDataColors_APC.append("tab:blue")
+                elif datapoint < 200 and datapoint >= 0.01:
+                    metAssayDataColors_APC.append("tab:orange")
+                else:
+                    metAssayDataColors_APC.append("w")
+
+            return metAssayDataColors_APC
+
         def arrange_colors_indexwise(
             colorsBIOLOG,
             colorsBWA,
             colors590nm,
-            colorsMetAssay,
+            colors750nm,
+            colorsBiomassMetAssayData,
+            colorsMainAPCMetAssayData,
         ):
 
             n = len(colorsBIOLOG)
@@ -729,7 +854,9 @@ class BAA:
                 colorsList.append(colorsBIOLOG[i])
                 colorsList.append(colorsBWA[i])
                 colorsList.append(colors590nm[i])
-                colorsList.append(colorsMetAssay[i])
+                colorsList.append(colorsMainAPCMetAssayData[i])
+                colorsList.append(colors750nm[i])
+                colorsList.append(colorsBiomassMetAssayData[i])
 
                 colorsLists_indexwise.append(colorsList)
 
@@ -740,19 +867,26 @@ class BAA:
             colorsBIOLOG = assign_colors_to_categories(summaryDataframe["BIOLOG"])
             colorsBWA = assign_colors_to_categories(summaryDataframe["BWA"])
             colors590nm = assign_colors_to_categories(summaryDataframe["590nm"])
-            colorsMetAssay = assign_colors_to_metAssayData(summaryDataframe["FBA"])
+            colors750nm = assign_colors_to_categories(summaryDataframe["750nm"])
+            colorsBiomassMetAssayData = assign_colors_to_metAssayData_Biomass(
+                summaryDataframe["BioM"]
+            )
+            colorsMainAPCMetAssayData = assign_colors_to_metAssayData_maintenanceAPC(
+                summaryDataframe["mainAPC"]
+            )
 
             colors = arrange_colors_indexwise(
                 colorsBIOLOG=colorsBIOLOG,
                 colorsBWA=colorsBWA,
                 colors590nm=colors590nm,
-                colorsMetAssay=colorsMetAssay,
+                colors750nm=colors750nm,
+                colorsBiomassMetAssayData=colorsBiomassMetAssayData,
+                colorsMainAPCMetAssayData=colorsMainAPCMetAssayData,
             )
 
             return colors
 
         # Iteration
-
         cellStrains = avg_CategoriesDataframe_BIOLOG.columns.get_level_values(
             level=0
         ).unique()
@@ -762,7 +896,11 @@ class BAA:
             strainName = strainInfoDataframe.loc[strain, "Strain"]
             strainDSMZ = strainInfoDataframe.loc[strain, "DSMZ-number"]
 
-            targetMetabolicAssay = metabolicAssayDataframe.loc[:, strainDSMZ]
+            targetBiomass_metAssayData = biomass_metAssayData.loc[:, strainDSMZ]
+            targetMainAPC_metAssayData = mainAPC_metAssayData.loc[:, strainDSMZ]
+
+            targetBiomass_metAssayData = targetBiomass_metAssayData.round(2)
+            targetMainAPC_metAssayData = targetMainAPC_metAssayData.round(2)
 
             strainTimepoints = (
                 avg_CategoriesDataframe_BIOLOG.loc[:, strain]
@@ -780,6 +918,9 @@ class BAA:
                 targetCategories_590nm = avg_CategoriesDataframe_590nm.loc[
                     :, (strain, timepoint)
                 ]
+                targetCategories_750nm = avg_CategoriesDataframe_750nm.loc[
+                    :, (strain, timepoint)
+                ]
 
                 summaryDataframe = pd.DataFrame(
                     index=avg_CategoriesDataframe_BIOLOG.index,
@@ -788,7 +929,9 @@ class BAA:
                 summaryDataframe[("BIOLOG")] = targetCategories_BIOLOG
                 summaryDataframe[("BWA")] = targetCategories_BWA
                 summaryDataframe[("590nm")] = targetCategories_590nm
-                summaryDataframe[("FBA")] = targetMetabolicAssay
+                summaryDataframe[("mainAPC")] = targetMainAPC_metAssayData
+                summaryDataframe[("750nm")] = targetCategories_750nm
+                summaryDataframe[("BioM")] = targetBiomass_metAssayData
 
                 summaryDataframe = summaryDataframe.sort_values(
                     summaryDataframe.columns.tolist(),
@@ -797,9 +940,10 @@ class BAA:
 
                 summaryColors = assign_and_arrange_colors_to_summaryDataframe()
 
+                # Table Generation with Categories and Metabolic Assay Data and Colors
                 fig, ax = plt.subplots(figsize=(figureWidth, figureHeight))
 
-                table1 = ax.table(
+                summaryCategoriesMetAssayTable = ax.table(
                     cellText=summaryDataframe.values,
                     cellColours=summaryColors,
                     rowLabels=summaryDataframe.index,
@@ -809,22 +953,22 @@ class BAA:
                     loc="best",
                 )
 
-                table1.auto_set_font_size(False)
-                table1.set_fontsize(12)
+                summaryCategoriesMetAssayTable.auto_set_font_size(False)
+                summaryCategoriesMetAssayTable.set_fontsize(12)
 
-                fig.suptitle(f"{strainName} {timepoint}")
+                fig.suptitle(f"{strainName} : {timepoint} hrs")
                 ax.axis("off")
                 fig.tight_layout()
 
                 # Save figure
                 if saveFigures is True:
 
-                    fig_name = f"{str(strain)}_{str(timepoint)}_sumtable.png"
+                    figureFileName = f"{str(strain)}_{str(timepoint)}_sumtable.png"
 
-                    today_data_fdr = self.generate_daily_folder()
-                    fig_path = today_data_fdr / fig_name
-                    fig_path.resolve()
+                    todaysDateFolder = self.generate_daily_folder()
+                    figureFilePath = todaysDateFolder / figureFileName
+                    figureFilePath.resolve()
 
-                    fig.savefig(fig_path)
+                    fig.savefig(figureFilePath)
 
                 plt.show()

@@ -45,6 +45,32 @@ draftModels = [
     "xrodentium_draft_xml.xml",
 ]
 
+for model in draftModels:
+
+    m_dir = po.get_draft_model_path(
+        draft_name=model,
+    )
+
+    draftModel = po.load_model(m_dir)
+    print(model)
+    print("....")
+    print(draftModel.summary()._string_objective(names=True))
+    print(draftModel.optimize().objective_value)
+    print("")
+
+    with draftModel:
+        atp_tgt = draftModel.reactions.get_by_id("rxn00172_c0")
+
+        draftModel.objective = atp_tgt
+
+        print(draftModel.summary()._string_objective(names=True))
+        print(draftModel.optimize().objective_value)
+
+    print("Out of with statement")
+    print(draftModel.summary()._string_objective(names=True))
+    print("__________________________________")
+
+
 ##############################
 
 test = EA()
@@ -62,7 +88,7 @@ gotit
 
 ###############################
 am_dir = po.get_draft_model_path(
-    draft_name="bpseudococcoides_draft_xml.xml",
+    draft_name="amuciniphila_draft_xml.xml",
 )
 am_m = po.load_model(am_dir)
 
@@ -75,15 +101,51 @@ ex_am.add_and_set_media(
     medium_df=ev.kwoji_met_df,
 )
 
-am_m.summary()
 
-ex_am.gather_media_fluxes()
+def create_ATP_maintenance_reaction():
 
-ex_am.find_medium_outliers(target_df=ex_am.uptake_df, medium=ev.kwoji_updated)
+    reaction = cobra.Reaction(
+        id="rxn11300_c0",
+        name="ATP maintenance",
+        lower_bound=0.0,
+        upper_bound=1000.0,
+    )
 
-am_m.metabolites.get_by_id("cpd00149_c0")
+    reaction.add_metabolites(
+        {
+            am_m.metabolites.get_by_id("cpd00002_c0"): -1.0,
+            am_m.metabolites.get_by_id("cpd00001_c0"): -1.0,
+            am_m.metabolites.get_by_id("cpd00008_c0"): 1.0,
+            am_m.metabolites.get_by_id("cpd00009_c0"): 1.0,
+            am_m.metabolites.get_by_id("cpd00067_c0"): 1.0,
+        }
+    )
 
-am_m.reactions.get_by_id("rxn04045_c0")
+    return reaction
+
+
+with am_m:
+
+    reaction = create_ATP_maintenance_reaction()
+
+    am_m.add_reactions([reaction])
+
+    am_m.objective = reaction
+
+    print(cobra.flux_analysis.pfba(am_m).objective_value)
+    print(am_m.optimize().objective_value)
+
+am_m.optimize().objective_value
+
+am_m.metabolites.cpd00002_c0.summary()
+
+am_m.metabolites.get_by_id("cpd00067_c0")
+
+am_m.reactions.get_by_id("rxn00216_c0")
+
+for rxn in am_m.reactions:
+
+    print(f"{rxn.id} --- {rxn.name}")
 
 ###############################
 ## LMurinus
