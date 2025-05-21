@@ -814,10 +814,14 @@ class BAA:
 
         def assign_colors_to_metAssayData_Biomass(metabolicAssayData):
             metAssayDataColors = []
+            negativeControl_water = metabolicAssayData["Water"]
             for category in metabolicAssayData:
-                if category >= 0.1:
+                if category >= 2 * negativeControl_water:
                     metAssayDataColors.append("tab:blue")
-                elif category < 0.1 and category >= 0.01:
+                elif (
+                    category < 2 * negativeControl_water
+                    and category > negativeControl_water
+                ):
                     metAssayDataColors.append("tab:orange")
                 else:
                     metAssayDataColors.append("w")
@@ -826,10 +830,14 @@ class BAA:
 
         def assign_colors_to_metAssayData_maintenanceAPC(metAssayData_APC):
             metAssayDataColors_APC = []
+            negativeControl_water = metAssayData_APC["Water"]
             for datapoint in metAssayData_APC:
-                if datapoint >= 200:
+                if datapoint >= 2 * negativeControl_water:
                     metAssayDataColors_APC.append("tab:blue")
-                elif datapoint < 200 and datapoint >= 0.01:
+                elif (
+                    datapoint < 2 * negativeControl_water
+                    and datapoint > negativeControl_water
+                ):
                     metAssayDataColors_APC.append("tab:orange")
                 else:
                     metAssayDataColors_APC.append("w")
@@ -899,7 +907,7 @@ class BAA:
             targetBiomass_metAssayData = biomass_metAssayData.loc[:, strainDSMZ]
             targetMainAPC_metAssayData = mainAPC_metAssayData.loc[:, strainDSMZ]
 
-            targetBiomass_metAssayData = targetBiomass_metAssayData.round(2)
+            targetBiomass_metAssayData = targetBiomass_metAssayData.round(3)
             targetMainAPC_metAssayData = targetMainAPC_metAssayData.round(2)
 
             strainTimepoints = (

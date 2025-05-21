@@ -19,12 +19,12 @@ biolog_met_df = biolog_met_df.loc[
 
 ##############
 
-kwoji_met_df = Reader().find_dataframe(
+kwoji_medium_df = Reader().find_dataframe(
     file_name="Metabolites Listing.xlsx",
     sheet_name="KWOJI",
 )
 
-kwoji_met_df = kwoji_met_df.loc[
+kwoji_medium_df = kwoji_medium_df.loc[
     :,
     ("Metabolite", "ModelSeed", "Formula"),
 ]
@@ -63,7 +63,7 @@ c_sources = [
     "EX_cpd00020_e0",  # pyruvate
 ]
 
-kwoji_updated = {
+kwoji_medium = {
     "EX_cpd00009_e0": (-60, 1000),
     "EX_cpd00205_e0": (-95, 1000),
     "EX_cpd00067_e0": (-92, 1000),

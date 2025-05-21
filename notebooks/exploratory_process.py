@@ -45,6 +45,8 @@ draftModels = [
     "xrodentium_draft_xml.xml",
 ]
 
+##############################
+
 for model in draftModels:
 
     m_dir = po.get_draft_model_path(
@@ -52,24 +54,52 @@ for model in draftModels:
     )
 
     draftModel = po.load_model(m_dir)
-    print(model)
-    print("....")
-    print(draftModel.summary()._string_objective(names=True))
-    print(draftModel.optimize().objective_value)
-    print("")
 
-    with draftModel:
-        atp_tgt = draftModel.reactions.get_by_id("rxn00172_c0")
+    es_dModel = es(
+        model=draftModel,
+    )
 
-        draftModel.objective = atp_tgt
+    print(draftModel)
 
-        print(draftModel.summary()._string_objective(names=True))
-        print(draftModel.optimize().objective_value)
+    print("---")
 
-    print("Out of with statement")
-    print(draftModel.summary()._string_objective(names=True))
-    print("__________________________________")
+    essential, variable = es_dModel.find_crucial_and_variable_essentialMetabolites(
+        baseMedium=ev.kwoji_medium,
+        baseMediumDataframe=ev.kwoji_medium_df,
+        closedMetabolites=ev.closed_uptake,
+    )
 
+    print("Essential:")
+
+    for ess in essential:
+
+        print(draftModel.reactions.get_by_id(ess).name)
+
+    es_dModel.set_media(
+        medium=ev.kwoji_medium,
+        closed=ev.closed_uptake,
+        essential=essential,
+    )
+
+    print(draftModel.slim_optimize())
+
+    print("---")
+
+    for rxn in variable:
+
+        yeah = essential + [rxn]
+
+        es_dModel.set_media(
+            medium=ev.kwoji_medium,
+            closed=ev.closed_uptake,
+            essential=yeah,
+        )
+
+        print(
+            f"{draftModel.reactions.get_by_id(rxn).name} --> {draftModel.slim_optimize()}"
+        )
+
+    print("_______________________________")
 
 ##############################
 
@@ -77,29 +107,94 @@ test = EA()
 
 gotit = test.metabolite_assay(
     target_models=ev.problematicModels,
-    medium=ev.kwoji_updated,
+    medium=ev.kwoji_medium,
     closed=ev.closed_uptake,
     essential=ev.essential,
-    metabolites=ev.biolog_met_df,
-    medium_df=ev.kwoji_met_df,
+    metabolites_df=ev.biolog_met_df,
+    medium_df=ev.kwoji_medium_df,
 )
 
 gotit
 
 ###############################
 am_dir = po.get_draft_model_path(
-    draft_name="amuciniphila_draft_xml.xml",
+    draft_name="ecoli_draft_xml.xml",
 )
 am_m = po.load_model(am_dir)
 
 ex_am = es(model=am_m)
 
 ex_am.add_and_set_media(
-    medium=ev.kwoji_updated,
+    medium=ev.kwoji_medium,
+    closed_m=ev.closed_uptake,
+    essential_m=None,
+    medium_df=ev.kwoji_medium_df,
+)
+
+am_m.slim_optimize()
+am_m.reactions.get_by_id("EX_cpd00025_e0")
+
+essential, possibly = ex_am.find_essentialMetabolites(
+    baseMedium=ev.kwoji_medium,
+    baseMediumDataframe=ev.kwoji_medium_df,
+    closedMetabolites=ev.closed_uptake,
+)
+
+essential
+
+possibly
+
+am_m.reactions.get_by_id("EX_cpd00025_e0")
+
+ex_am.add_and_set_media(
+    medium=ev.kwoji_medium,
+    closed_m=ev.closed_uptake,
+    essential_m=essential,
+    medium_df=ev.kwoji_medium_df,
+)
+
+print(am_m.slim_optimize())
+
+for p in possibly:
+
+    esemero = essential + [p]
+
+    ex_am.add_and_set_media(
+        medium=ev.kwoji_medium,
+        closed_m=ev.closed_uptake,
+        essential_m=esemero,
+        medium_df=ev.kwoji_medium_df,
+    )
+    print(am_m.reactions.get_by_id(p).name)
+    print(am_m.slim_optimize())
+    print("-------------")
+
+######################
+
+ex_am.add_and_set_media(
+    medium=ev.kwoji_medium,
     closed_m=ev.closed_uptake,
     essential_m=ev.essential,
-    medium_df=ev.kwoji_met_df,
+    medium_df=ev.kwoji_medium_df,
 )
+
+am_m.summary().uptake_flux.sort_values(["flux"], ascending=False)
+
+max_growth = am_m.slim_optimize()
+testingMinMedia = cobra.medium.minimal_medium(
+    model=am_m,
+    min_objective_value=max_growth,
+    open_exchanges=False,
+)
+
+print(max_growth)
+for x in testingMinMedia.index:
+    rxnName = am_m.reactions.get_by_id(x)
+    min_flux = testingMinMedia[x]
+
+    print(f"{rxnName.name} --> {min_flux}")
+
+#####################
 
 
 def create_ATP_maintenance_reaction():
@@ -155,14 +250,14 @@ ex_lm = es(model=lm_m)
 
 lm_m
 
-ex_lm.add_missing_medium_met(medium=ev.kwoji_updated)
+ex_lm.add_missing_medium_met(medium=ev.kwoji_medium)
 
 for m in lm_m.metabolites:
 
     print(m)
 
 ex_lm.set_media(
-    medium=ev.kwoji_updated,
+    medium=ev.kwoji_medium,
     essential=ev.essential,
     closed=ev.closed_uptake,
 )
@@ -177,10 +272,10 @@ pg_dir = po.get_draft_model_path(draft_name="pgoldsteinii_draft_xml.xml")
 pgold_m = po.load_model(pg_dir)
 ex_pgold = es(model=pgold_m)
 
-ex_pgold.add_missing_medium_met(medium=ev.kwoji_updated)
+ex_pgold.add_missing_medium_met(medium=ev.kwoji_medium)
 
 ex_pgold.set_media(
-    medium=ev.kwoji_updated,
+    medium=ev.kwoji_medium,
     essential=ev.essential,
     closed=ev.closed_uptake,
 )
@@ -195,7 +290,7 @@ test = EA()
 
 test.metabolite_assay(
     target_models=ev.draftModels,
-    medium=ev.kwoji_updated,
+    medium=ev.kwoji_medium,
     closed=ev.closed_uptake,
     essential=ev.essential,
     metabolites=ev.biolog_met_df,
@@ -216,8 +311,8 @@ ex_pgold.print_reactions_from_metabolite(target_metabolite_id="cpd00027_e0")
 
 up, sec = ex_pgold.gather_media_fluxes()
 
-ex_pgold.find_medium_outliers(up, medium=ev.kwoji_updated)
-ex_pgold.find_medium_outliers(sec, medium=ev.kwoji_updated)
+ex_pgold.find_medium_outliers(up, medium=ev.kwoji_medium)
+ex_pgold.find_medium_outliers(sec, medium=ev.kwoji_medium)
 
 # Lmurinus
 model_dir = po.get_model_version_path(mo_name="LigilactobacillusMurinus")
@@ -225,7 +320,7 @@ model = po.load_model(model_dir)
 
 exploration = es(model=model)
 exploration.set_media(
-    medium=ev.kwoji_updated,
+    medium=ev.kwoji_medium,
     essential=ev.essential,
     closed=ev.closed_uptake,
 )

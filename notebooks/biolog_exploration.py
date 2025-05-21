@@ -29,22 +29,37 @@ po = PathOrganizer()
 baa_test = BAA()
 test = EA()
 
-%%time
-biomass_mAssay_results, ATPM_mAssay_results = test.metabolite_assay(
-    target_models=ev.draftModels,
-    medium=ev.kwoji_updated,
-    closed=ev.closed_uptake,
-    essential=ev.essential,
-    metabolites=ev.biolog_met_df,
-    medium_df=ev.kwoji_met_df,
-    optimizationType="llFBA",
+crucial, variable = test.generate_essentialMetabolites_dictionaries(
+    targetModels=ev.draftModels,
+    mediumMetabolites=ev.kwoji_medium,
+    mediumMetabolitesDataframe=ev.kwoji_medium_df,
+    closedMetabolites=ev.closed_uptake,
 )
 
-test.save_dataframe_to_pickle(dataframe=biomass_mAssay_results)
-test.save_dataframe_to_pickle(dataframe=ATPM_mAssay_results)
+best_eMets = test.essentialMetabolites_report(
+    targetModels=ev.draftModels,
+    mediumMetabolites=ev.kwoji_medium,
+    mediumMetabolitesDataframe=ev.kwoji_medium_df,
+    closedMetabolites=ev.closed_uptake,
+    crucial_eMetabolites=crucial,
+    variable_eMetabolites=variable,
+)
 
-biomass_mAssay_results = test.load_dataframe_from_pickle()
-ATPM_mAssay_results = test.load_dataframe_from_pickle()
+biomass_mAssay_results, ATPM_mAssay_results = test.metabolite_assay(
+    targetModels=ev.draftModels,
+    mediumMetabolites=ev.kwoji_medium,
+    closedMetabolites=ev.closed_uptake,
+    targetModels_EssentialMetabolites=best_eMets,
+    assayMetabolitesDataframe=ev.biolog_met_df,
+    mediumMetabolitesDataframe=ev.kwoji_medium_df,
+    optimizationType="FBA",
+)
+
+# test.save_dataframe_to_pickle(dataframe=biomass_mAssay_results)
+# test.save_dataframe_to_pickle(dataframe=ATPM_mAssay_results)
+
+# biomass_mAssay_results = test.load_dataframe_from_pickle()
+# ATPM_mAssay_results = test.load_dataframe_from_pickle()
 
 ##########################
 

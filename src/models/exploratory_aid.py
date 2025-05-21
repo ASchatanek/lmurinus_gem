@@ -40,36 +40,44 @@ class ExploratoryAid:
 
     def metabolite_assay(
         self,
-        target_models: list,
-        medium: list or dict,
-        medium_df: pd.DataFrame,
-        closed: list,
-        essential: list,
-        metabolites: list,
+        targetModels: list,
+        mediumMetabolites: list or dict,
+        mediumMetabolitesDataframe: pd.DataFrame,
+        closedMetabolites: list,
+        targetModels_EssentialMetabolites: dict,
+        assayMetabolitesDataframe: pd.DataFrame,
         optimizationType: str = "FBA",
     ):
 
         LOfModels = self.iter_through_draft_models(
-            target_models=target_models,
+            target_models=targetModels,
         )
 
-        biomass_resultsDataframe = pd.DataFrame(index=metabolites["Metabolite"])
-        ATPM_resultsDataframe = pd.DataFrame(index=metabolites["Metabolite"])
+        biomass_resultsDataframe = pd.DataFrame(
+            index=assayMetabolitesDataframe["Metabolite"]
+        )
+        ATPM_resultsDataframe = pd.DataFrame(
+            index=assayMetabolitesDataframe["Metabolite"]
+        )
 
         for model in LOfModels:
 
             model: MET
 
+            target_essentialMetabolites = targetModels_EssentialMetabolites[
+                model.model.id
+            ]
+
             model.add_and_set_media(
-                medium=medium,
-                medium_df=medium_df,
-                closed_m=closed,
-                essential_m=essential,
+                medium=mediumMetabolites,
+                medium_df=mediumMetabolitesDataframe,
+                closed_m=closedMetabolites,
+                essential_m=target_essentialMetabolites,
             )
 
             biomass_mAssay_results, ATPM_mAssay_results = (
                 model.metabolites_growth_energy_optimization_assay(
-                    metabolitesDataframe=metabolites,
+                    metabolitesDataframe=assayMetabolitesDataframe,
                     optimizationType=optimizationType,
                 )
             )
@@ -82,6 +90,127 @@ class ExploratoryAid:
             )
 
         return biomass_resultsDataframe, ATPM_resultsDataframe
+
+    def generate_essentialMetabolites_dictionaries(
+        self,
+        targetModels: list,
+        mediumMetabolites: list or dict,
+        mediumMetabolitesDataframe: pd.DataFrame,
+        closedMetabolites: list,
+    ):
+
+        # Define empty result dictionaries
+        dict_crucial_eMetabolites = dict()
+        dict_variable_eMetabolites = dict()
+
+        LOfModels = self.iter_through_draft_models(
+            target_models=targetModels,
+        )
+
+        for model in LOfModels:
+
+            model: MET
+
+            crucial_essentialMetabolites, variable_essentialMetabolites = (
+                model.find_crucial_and_variable_essentialMetabolites(
+                    baseMedium=mediumMetabolites,
+                    baseMediumDataframe=mediumMetabolitesDataframe,
+                    closedMetabolites=closedMetabolites,
+                )
+            )
+
+            dict_crucial_eMetabolites[model.model.id] = crucial_essentialMetabolites
+            dict_variable_eMetabolites[model.model.id] = variable_essentialMetabolites
+
+        return dict_crucial_eMetabolites, dict_variable_eMetabolites
+
+    def essentialMetabolites_report(
+        self,
+        targetModels: list,
+        mediumMetabolites: list or dict,
+        mediumMetabolitesDataframe: pd.DataFrame,
+        closedMetabolites: list,
+        crucial_eMetabolites: dict,
+        variable_eMetabolites: dict,
+    ):
+
+        LOfModels = self.iter_through_draft_models(target_models=targetModels)
+
+        best_essentialMetabolites = dict()
+
+        # Iterate through models
+        for model in LOfModels:
+
+            model: MET
+
+            # Retrieve target crucial and variable essentialMetabolites
+            model_crucial_eMets = crucial_eMetabolites[model.model.id]
+            model_variable_eMets = variable_eMetabolites[model.model.id]
+
+            # Print for crucial essential without any extra variable essential metabolite
+            model.add_and_set_media(
+                medium=mediumMetabolites,
+                medium_df=mediumMetabolitesDataframe,
+                closed_m=closedMetabolites,
+                essential_m=model_crucial_eMets,
+            )
+
+            slimResult = model.model.slim_optimize()
+
+            print(f"{model.model.id}")
+            print("......................")
+            print("Essential Metabolites:")
+            print("")
+            for crucial in model_crucial_eMets:
+
+                crucial_name = model.model.reactions.get_by_id(crucial).name
+
+                print(f"{crucial} --> {crucial_name}")
+
+            print("")
+            print(f"FBA: {round(slimResult, 4)}")
+            print("")
+            if not model_variable_eMets:
+
+                best_essentialMetabolites[model.model.id] = model_crucial_eMets
+
+            else:
+
+                best_essentialMetabolites_result = 0.0
+
+                print("......................")
+                print("Variable Metabolites:")
+                print("")
+                for variable in model_variable_eMets:
+
+                    essentialMetabolites = model_crucial_eMets + [variable]
+
+                    variable_name = model.model.reactions.get_by_id(variable).name
+
+                    model.set_media(
+                        medium=mediumMetabolites,
+                        essential=essentialMetabolites,
+                        closed=closedMetabolites,
+                    )
+
+                    slimResult = model.model.slim_optimize()
+
+                    print(f"{variable} --> {variable_name}")
+                    print(f"FBA: {round(slimResult, 4)}")
+                    print("")
+
+                    if slimResult > best_essentialMetabolites_result:
+
+                        best_essentialMetabolites_result = slimResult
+                        best_essentialMetabolites_combination = essentialMetabolites
+
+                best_essentialMetabolites[model.model.id] = (
+                    best_essentialMetabolites_combination
+                )
+
+            print("_______________________________")
+
+        return best_essentialMetabolites
 
     # Generate a new folder named by Year_Month_Day if not available, get its path
     def generate_daily_folder(self) -> Path:

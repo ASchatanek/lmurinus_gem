@@ -408,8 +408,8 @@ class Model_Exploration_Tool:
                 optimization_biomass_metabolite = self.model.optimize().objective_value
 
                 optimization_biomass_metabolite = round(
-                    number=optimization_biomass_metabolite - biomass_negControl,
-                    ndigits=3,
+                    number=optimization_biomass_metabolite,
+                    ndigits=4,
                 )
 
                 results_BiomassOptimizations_dict[metabolite_info[1]] = (
@@ -429,7 +429,7 @@ class Model_Exploration_Tool:
 
                 ## Difference to negative control
                 optimization_ATPmaintenance_metabolite = round(
-                    number=optimization_ATPmaintenance_metabolite - ATP_negControl,
+                    number=optimization_ATPmaintenance_metabolite,
                     ndigits=3,
                 )
 
@@ -598,7 +598,130 @@ class Model_Exploration_Tool:
 
         return self.c_source_prediction_results_df
 
-    def reduced_uptake_fba_analysis(self, percentage: float = 1.0) -> pd.DataFrame:
+    def find_crucial_and_variable_essentialMetabolites(
+        self,
+        baseMedium: dict,
+        baseMediumDataframe: pd.DataFrame,
+        closedMetabolites: list,
+    ) -> list:
+
+        # Fetch list of exchange reactions in the model
+        exchangeReactionsList = [exRXN.id for exRXN in self.model.exchanges]
+
+        # Remove medium components and closed metabolites from exchange reaction list
+        ## Remove medium components
+        exchangeReactionsList = [
+            exRXN
+            for exRXN in exchangeReactionsList
+            if exRXN not in list(baseMedium.keys())
+        ]
+
+        ## Remove closed metabolites
+        exchangeReactionsList = [
+            exRXN for exRXN in exchangeReactionsList if exRXN not in closedMetabolites
+        ]
+
+        ## Set initial baseMedium
+        self.add_and_set_media(
+            medium=baseMedium,
+            closed_m=closedMetabolites,
+            essential_m=None,
+            medium_df=baseMediumDataframe,
+        )
+
+        checkFBA = self.model.slim_optimize()
+
+        if checkFBA > 0.0:
+
+            crucial_essentialMetabolites = []
+            variable_essentialMetabolites = []
+
+            return crucial_essentialMetabolites, variable_essentialMetabolites
+
+        # Establish an initial empty list of crucial_essentialMetabolites
+        crucial_essentialMetabolites = []
+
+        # This means that there must be an essential metabolite within the remaining exchange reactions
+        ## Iteration
+        for targetRXN in exchangeReactionsList:
+
+            exchangeReactionsList_minusTargetRXN = [
+                exRXN for exRXN in exchangeReactionsList if exRXN != targetRXN
+            ]
+
+            self.set_media(
+                medium=baseMedium,
+                closed=closedMetabolites,
+                essential=exchangeReactionsList_minusTargetRXN,
+            )
+
+            checkFBA = self.model.slim_optimize()
+
+            # Checks if by removing the target metabolite the biomass growth is disabled
+            if checkFBA <= 0.0:
+                crucial_essentialMetabolites.append(targetRXN)
+
+        # Check for any metabolites that had 2 or more ways to be included into the biomass reaction
+        ## First, check if the essential metabolites are enough
+
+        ### Set media
+        self.set_media(
+            medium=baseMedium,
+            closed=closedMetabolites,
+            essential=crucial_essentialMetabolites,
+        )
+
+        checkFBA = self.model.slim_optimize()
+
+        if checkFBA <= 0.0:
+            # * This means that there are remaining reactions that contribute to the biomass reaction
+            variable_essentialMetabolites = []
+
+            ## Get remaining metabolites from the exchangeReactionList
+            remainingExchangeReactions = [
+                exRXN
+                for exRXN in exchangeReactionsList
+                if exRXN not in crucial_essentialMetabolites
+            ]
+
+            # Iterate remaining exchange reactions
+            for targetRXN in remainingExchangeReactions:
+
+                ## Add targetRXN from the list of remainingExchangeReactions to the crucial_essentialMetabolites list
+                targetVariable_in_essentialMetabolites = (
+                    crucial_essentialMetabolites + [targetRXN]
+                )
+
+                ## Update medium
+                self.set_media(
+                    medium=baseMedium,
+                    closed=closedMetabolites,
+                    essential=targetVariable_in_essentialMetabolites,
+                )
+
+                checkFBA = self.model.slim_optimize()
+
+                if checkFBA <= 0.0:
+                    # This means that the added exchange reaction is not responsible for any contributing metabolite ON ITS OWN
+                    #! Doesn't account for the possibility of 2 separate reactions that must be present simultaneously to produce an biomass essential substrate
+                    continue
+
+                else:
+                    # The exchange reaction by itself is capable of producing a missing essential metabolite missing for biomass growth
+                    variable_essentialMetabolites.append(targetRXN)
+
+            return crucial_essentialMetabolites, variable_essentialMetabolites
+
+        else:
+
+            variable_essentialMetabolites = []
+
+            return crucial_essentialMetabolites, variable_essentialMetabolites
+
+    def reduced_uptake_fba_analysis(
+        self,
+        percentage: float = 1.0,
+    ) -> pd.DataFrame:
         """Method to analyse the effects of contraining the uptake of individual medium components on the model´s predicted secretion and uptake fluxes. An iterative process takes the individual components of the current defined model´s medium. Then, while using the "with" statement, modifies the current uptake bound (neg. lowerbound) by the defined percentage and performs an FBA optimization. Using the "summary()" method, the secreted and uptaked fluxes are retrieved and stored.
 
         Parameters
