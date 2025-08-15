@@ -9,6 +9,15 @@
 			"editor.defaultFormatter": "ms-python.black-formatter"
 		},
 		"python.formatting.provider": "none",
-		"autoDocstring.docstringFormat": "numpy"
+		"autoDocstring.docstringFormat": "numpy",
+		"jupyter.interactiveWindow.textEditor.executeSelection": true,
+		"editor.formatOnSave": true,
+		"editor.defaultFormatter": "charliermarsh.ruff",
+		"terminal.integrated.cwd": "",
+		"terminal.integrated.persistentSessionReviveProcess": "onExit",
+		"terminal.integrated.splitCwd": "inherited",
+		"jupyter.notebookFileRoot": "${workspaceFolder}",
+		"jupyter.interactiveWindow.notebookRepl": false,
+		"jupyter.interactiveWindow.creationMode": "perFile"
 	}
 }

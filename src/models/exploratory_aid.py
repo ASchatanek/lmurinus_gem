@@ -1,13 +1,15 @@
+import re
+from datetime import datetime
+from pathlib import Path
+
 import cobra
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import matplotlib.pyplot as plt
-import re
+
 from .exploratory_functions import Model_Exploration_Tool as MET
 from .path_organizer import PathOrganizer as PO
-from pathlib import Path
-from datetime import datetime
 
 
 class ExploratoryAid:
@@ -60,6 +62,10 @@ class ExploratoryAid:
             index=assayMetabolitesDataframe["Metabolite"]
         )
 
+        metaboliteExistence_resultsDataframe = pd.DataFrame(
+            index=assayMetabolitesDataframe["Metabolite"]
+        )
+
         for model in LOfModels:
 
             model: MET
@@ -75,21 +81,78 @@ class ExploratoryAid:
                 essential_m=target_essentialMetabolites,
             )
 
-            biomass_mAssay_results, ATPM_mAssay_results = (
-                model.metabolites_growth_energy_optimization_assay(
-                    metabolitesDataframe=assayMetabolitesDataframe,
-                    optimizationType=optimizationType,
-                )
+            (
+                biomass_mAssay_results,
+                ATPM_mAssay_results,
+                MetabolitesExistence_results,
+            ) = model.metabolites_growth_energy_optimization_assay(
+                metabolitesDataframe=assayMetabolitesDataframe,
+                optimizationType=optimizationType,
             )
 
             biomass_resultsDataframe = biomass_resultsDataframe.join(
                 biomass_mAssay_results,
             )
+
             ATPM_resultsDataframe = ATPM_resultsDataframe.join(
                 ATPM_mAssay_results,
             )
 
-        return biomass_resultsDataframe, ATPM_resultsDataframe
+            metaboliteExistence_resultsDataframe = (
+                metaboliteExistence_resultsDataframe.join(
+                    MetabolitesExistence_results,
+                )
+            )
+
+        return (
+            biomass_resultsDataframe,
+            ATPM_resultsDataframe,
+            metaboliteExistence_resultsDataframe,
+        )
+
+    def metabolite_assay_testing(
+        self,
+        targetModels: list,
+        mediumMetabolites: list or dict,
+        mediumMetabolitesDataframe: pd.DataFrame,
+        closedMetabolites: list,
+        targetModels_EssentialMetabolites: dict,
+        assayMetabolitesDataframe: pd.DataFrame,
+        optimizationType: str = "FBA",
+    ):
+
+        results_metAssays = pd.DataFrame()
+
+        LOfModels = self.iter_through_draft_models(
+            target_models=targetModels,
+        )
+
+        for model in LOfModels:
+
+            model: MET
+
+            target_essentialMetabolites = targetModels_EssentialMetabolites[
+                model.model.id
+            ]
+
+            model.add_and_set_media(
+                medium=mediumMetabolites,
+                medium_df=mediumMetabolitesDataframe,
+                closed_m=closedMetabolites,
+                essential_m=target_essentialMetabolites,
+            )
+
+            model_results_metAssay = model.testing_something(
+                metabolitesDataframe=assayMetabolitesDataframe,
+                optimizationType=optimizationType,
+            )
+
+            results_metAssays = pd.concat(
+                [results_metAssays, model_results_metAssay],
+                axis=1,
+            )
+
+        return results_metAssays
 
     def generate_essentialMetabolites_dictionaries(
         self,

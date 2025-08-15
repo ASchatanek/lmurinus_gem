@@ -775,7 +775,7 @@ class BAA:
         categoriesDataframe_750nm: pd.DataFrame,
         strainInfoDataframe: pd.DataFrame,
         biomass_metAssayData: pd.DataFrame,
-        mainAPC_metAssayData: pd.DataFrame,
+        mainATP_metAssayData: pd.DataFrame,
         figureWidth: float = 8,
         figureHeight: float = 20,
         saveFigures: bool = False,
@@ -796,6 +796,7 @@ class BAA:
             categoriesDataframe=categoriesDataframe_590nm,
         )
 
+        # Generate Average Categorization for 750nm Normalized Categorizations
         avg_CategoriesDataframe_750nm = self.fetch_avg_categoriesDataframe(
             categoriesDataframe=categoriesDataframe_750nm,
         )
@@ -850,7 +851,7 @@ class BAA:
             colors590nm,
             colors750nm,
             colorsBiomassMetAssayData,
-            colorsMainAPCMetAssayData,
+            colorsmainATPMetAssayData,
         ):
 
             n = len(colorsBIOLOG)
@@ -862,7 +863,7 @@ class BAA:
                 colorsList.append(colorsBIOLOG[i])
                 colorsList.append(colorsBWA[i])
                 colorsList.append(colors590nm[i])
-                colorsList.append(colorsMainAPCMetAssayData[i])
+                colorsList.append(colorsmainATPMetAssayData[i])
                 colorsList.append(colors750nm[i])
                 colorsList.append(colorsBiomassMetAssayData[i])
 
@@ -879,8 +880,8 @@ class BAA:
             colorsBiomassMetAssayData = assign_colors_to_metAssayData_Biomass(
                 summaryDataframe["BioM"]
             )
-            colorsMainAPCMetAssayData = assign_colors_to_metAssayData_maintenanceAPC(
-                summaryDataframe["mainAPC"]
+            colorsmainATPMetAssayData = assign_colors_to_metAssayData_maintenanceAPC(
+                summaryDataframe["mainATP"]
             )
 
             colors = arrange_colors_indexwise(
@@ -889,7 +890,7 @@ class BAA:
                 colors590nm=colors590nm,
                 colors750nm=colors750nm,
                 colorsBiomassMetAssayData=colorsBiomassMetAssayData,
-                colorsMainAPCMetAssayData=colorsMainAPCMetAssayData,
+                colorsmainATPMetAssayData=colorsmainATPMetAssayData,
             )
 
             return colors
@@ -905,10 +906,10 @@ class BAA:
             strainDSMZ = strainInfoDataframe.loc[strain, "DSMZ-number"]
 
             targetBiomass_metAssayData = biomass_metAssayData.loc[:, strainDSMZ]
-            targetMainAPC_metAssayData = mainAPC_metAssayData.loc[:, strainDSMZ]
+            targetmainATP_metAssayData = mainATP_metAssayData.loc[:, strainDSMZ]
 
             targetBiomass_metAssayData = targetBiomass_metAssayData.round(3)
-            targetMainAPC_metAssayData = targetMainAPC_metAssayData.round(2)
+            targetmainATP_metAssayData = targetmainATP_metAssayData.round(2)
 
             strainTimepoints = (
                 avg_CategoriesDataframe_BIOLOG.loc[:, strain]
@@ -937,7 +938,7 @@ class BAA:
                 summaryDataframe[("BIOLOG")] = targetCategories_BIOLOG
                 summaryDataframe[("BWA")] = targetCategories_BWA
                 summaryDataframe[("590nm")] = targetCategories_590nm
-                summaryDataframe[("mainAPC")] = targetMainAPC_metAssayData
+                summaryDataframe[("mainATP")] = targetmainATP_metAssayData
                 summaryDataframe[("750nm")] = targetCategories_750nm
                 summaryDataframe[("BioM")] = targetBiomass_metAssayData
 
@@ -980,3 +981,38 @@ class BAA:
                     fig.savefig(figureFilePath)
 
                 plt.show()
+
+    def testing_something(
+        self,
+        categoriesDataframe_BIOLOG: pd.DataFrame,
+        categoriesDataframe_BWA: pd.DataFrame,
+        categoriesDataframe_590nm: pd.DataFrame,
+    ):
+
+        # Generate Average Categorization for BIOLOG Categorizations
+        avg_CategoriesDataframe_BIOLOG = self.fetch_avg_categoriesDataframe(
+            categoriesDataframe=categoriesDataframe_BIOLOG,
+        )
+
+        # Generate Average Categorization for BWA Normalized Categorizations
+        avg_CategoriesDataframe_BWA = self.fetch_avg_categoriesDataframe(
+            categoriesDataframe=categoriesDataframe_BWA,
+        )
+
+        # Generate Average Categorization for 590nm Normalized Categorizations
+        avg_CategoriesDataframe_590nm = self.fetch_avg_categoriesDataframe(
+            categoriesDataframe=categoriesDataframe_590nm,
+        )
+
+        summaryDataframe = pd.concat(
+            [
+                avg_CategoriesDataframe_BIOLOG,
+                avg_CategoriesDataframe_BWA,
+                avg_CategoriesDataframe_590nm,
+            ],
+            axis=1,
+            keys=["BIOLOG", "BWA", "590nm"],
+            names=["Data Types"],
+        )
+
+        return summaryDataframe

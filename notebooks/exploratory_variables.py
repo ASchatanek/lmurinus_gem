@@ -19,6 +19,18 @@ biolog_met_df = biolog_met_df.loc[
 
 ##############
 
+biolog_met_complete_df = Reader().find_dataframe(
+    file_name="Metabolites Listing.xlsx",
+    sheet_name="BIOLOG",
+)
+
+biolog_met_complete_df = biolog_met_complete_df.loc[
+    :,
+    ("Metabolite", "ModelSeed", "Formula", "Group"),
+]
+
+##############
+
 kwoji_medium_df = Reader().find_dataframe(
     file_name="Metabolites Listing.xlsx",
     sheet_name="KWOJI",
@@ -136,15 +148,4 @@ draftModels = [
     "pgoldsteinii_draft_xml.xml",
     "tmuris_draft_xml.xml",
     "xrodentium_draft_xml.xml",
-]
-
-problematicModels = [
-    "amuciniphila_draft_xml.xml",
-    "amucosicola_draft_xml.xml",
-    "bcaecimuris_draft_xml.xml",
-    "bpseudococcoides_draft_xml.xml",
-    "cinnocuum_draft_xml.xml",
-    "cramosum_draft_xml.xml",
-    "eclostridioformis_draft_xml.xml",
-    "efaecalis_draft_xml.xml",
 ]
